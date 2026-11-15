@@ -102,7 +102,7 @@ class Default(WorkerEntrypoint):
             return json_response({
                 "status": "ok",
                 "service": "solestock",
-                "build": 4,
+                "build": 7,
             })
 
         # GET /api/session
@@ -186,7 +186,7 @@ class Default(WorkerEntrypoint):
                 "products": row_int(products, "count"),
                 "sizes": row_int(sizes, "count"),
                 "brands": row_int(brands, "count"),
-                "build": 4,
+                "build": 7,
             })
 
         # GET /api/summary
@@ -330,80 +330,104 @@ class Default(WorkerEntrypoint):
                 "brands": brands,
                 "recent_products": recent_products,
                 "alerts": list(alerts_by_product.values()),
-                "build": 4,
+                "build": 7,
             })
 
         # GET /api/products
         if path.endswith("/api/products") and method == "GET":
-            product_rows = await self.env.DB.prepare(
+            rows = await self.env.DB.prepare(
                 """
                 SELECT
-                    id, brand, article_name, product_name, note, category,
-                    image_url, image_public_id, minimum_threshold, updated_at
-                FROM product
+                    p.id AS product_id,
+                    p.brand,
+                    p.article_name,
+                    p.product_name,
+                    p.note,
+                    p.category,
+                    p.image_url,
+                    p.image_public_id,
+                    p.minimum_threshold AS product_threshold,
+                    p.updated_at,
+                    s.id AS size_id,
+                    s.size,
+                    s.quantity,
+                    s.minimum_threshold AS size_threshold
+                FROM product AS p
+                LEFT JOIN size_stock AS s ON s.product_id = p.id
                 ORDER BY
-                    LOWER(COALESCE(NULLIF(product_name, ''), article_name)),
-                    LOWER(article_name)
+                    LOWER(COALESCE(NULLIF(p.product_name, ''), p.article_name)),
+                    LOWER(p.article_name),
+                    CASE WHEN s.size GLOB '[0-9]*'
+                        THEN CAST(s.size AS REAL) ELSE 999999 END,
+                    LOWER(s.size)
                 """
             ).all()
 
-            size_rows = await self.env.DB.prepare(
-                """
-                SELECT id, product_id, size, quantity, minimum_threshold
-                FROM size_stock
-                ORDER BY
-                    product_id,
-                    CASE WHEN size GLOB '[0-9]*'
-                        THEN CAST(size AS REAL) ELSE 999999 END,
-                    LOWER(size)
-                """
-            ).all()
+            products_by_id = {}
+            missing_names = 0
+            missing_articles = 0
+            missing_brands = 0
+            products_without_sizes = 0
 
-            sizes_by_product = {}
-            for row in size_rows.results:
+            for row in rows.results:
                 product_id = row_int(row, "product_id")
-                quantity = row_int(row, "quantity")
-                threshold = row_int(row, "minimum_threshold")
-                sizes_by_product.setdefault(product_id, []).append({
-                    "id": row_int(row, "id"),
-                    "size": row_text(row, "size"),
-                    "quantity": quantity,
-                    "minimum_threshold": threshold,
-                    "status": (
-                        "out" if quantity == 0
-                        else "low" if quantity <= threshold
-                        else "good"
-                    ),
-                })
+                if product_id not in products_by_id:
+                    article = row_text(row, "article_name")
+                    raw_name = row_text(row, "product_name")
+                    brand = row_text(row, "brand")
+                    category = row_text(row, "category")
+
+                    if not raw_name:
+                        missing_names += 1
+                    if not article:
+                        missing_articles += 1
+                    if not brand:
+                        missing_brands += 1
+
+                    products_by_id[product_id] = {
+                        "id": product_id,
+                        "brand": brand or "Unknown brand",
+                        "article_name": article or f"Product {product_id}",
+                        "product_name": raw_name or article or f"Product {product_id}",
+                        "note": getattr(row, "note", None),
+                        "category": category or "Uncategorized",
+                        "image_url": getattr(row, "image_url", None),
+                        "image_public_id": getattr(row, "image_public_id", None),
+                        "minimum_threshold": row_int(row, "product_threshold"),
+                        "updated_at": getattr(row, "updated_at", None),
+                        "sizes": [],
+                    }
+
+                size_id = getattr(row, "size_id", None)
+                if size_id is not None:
+                    quantity = row_int(row, "quantity")
+                    threshold = row_int(row, "size_threshold")
+                    products_by_id[product_id]["sizes"].append({
+                        "id": int(size_id),
+                        "size": row_text(row, "size", "-") or "-",
+                        "quantity": quantity,
+                        "minimum_threshold": threshold,
+                        "status": (
+                            "out" if quantity == 0
+                            else "low" if quantity <= threshold
+                            else "good"
+                        ),
+                    })
 
             products = []
-            for row in product_rows.results:
-                product_id = row_int(row, "id")
-                sizes = sizes_by_product.get(product_id, [])
-                total_quantity = sum(item["quantity"] for item in sizes)
-                threshold = row_int(row, "minimum_threshold")
-                article = row_text(row, "article_name")
-                name = row_text(row, "product_name") or article or "Unnamed product"
-                status = (
-                    "out" if total_quantity == 0
-                    else "low" if total_quantity <= threshold
+            for product in products_by_id.values():
+                sizes = product["sizes"]
+                if not sizes:
+                    products_without_sizes += 1
+                total = sum(item["quantity"] for item in sizes)
+                threshold = product["minimum_threshold"]
+                product["total_quantity"] = total
+                product["status"] = (
+                    "out" if total == 0
+                    else "low" if total <= threshold
                     else "good"
                 )
-                products.append({
-                    "id": product_id,
-                    "brand": row_text(row, "brand"),
-                    "article_name": article,
-                    "product_name": name,
-                    "note": getattr(row, "note", None),
-                    "category": row_text(row, "category"),
-                    "image_url": getattr(row, "image_url", None),
-                    "image_public_id": getattr(row, "image_public_id", None),
-                    "minimum_threshold": threshold,
-                    "updated_at": getattr(row, "updated_at", None),
-                    "total_quantity": total_quantity,
-                    "status": status,
-                    "sizes": sizes,
-                })
+                products.append(product)
 
             brand_rows = await self.env.DB.prepare(
                 "SELECT name FROM brand ORDER BY LOWER(name)"
@@ -415,10 +439,16 @@ class Default(WorkerEntrypoint):
             ]
 
             return json_response({
-                "build": 4,
+                "build": 7,
                 "brands": brands,
                 "product_count": len(products),
                 "size_row_count": sum(len(item["sizes"]) for item in products),
+                "data_quality": {
+                    "missing_product_names": missing_names,
+                    "missing_article_names": missing_articles,
+                    "missing_brands": missing_brands,
+                    "products_without_sizes": products_without_sizes,
+                },
                 "products": products,
             })
 

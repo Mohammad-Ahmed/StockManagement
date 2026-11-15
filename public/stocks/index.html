@@ -4,331 +4,123 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Stocks · SoleStock</title>
-  <link rel="stylesheet" href="/style.css?v=4">
+  <link rel="stylesheet" href="/style.css?v=70">
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="/stocks/">
-      <span class="brand-mark">S</span>
-      <span>SoleStock</span>
-    </a>
+<header class="topbar">
+  <a class="brand" href="/"><span class="brand-mark">S</span><span>SoleStock</span></a>
+  <nav aria-label="Main navigation">
+    <a href="/">Home</a>
+    <a class="active" href="/stocks/">Stocks</a>
+    <a href="#">Brands</a>
+  </nav>
+  <div class="nav-actions">
+    <div class="nav-user"><span class="nav-user-avatar">A</span><span class="nav-user-details"><strong id="currentUser">admin</strong><small>Administrator</small></span></div>
+    <button class="button primary desktop-add" type="button" disabled>+ Add Product</button>
+    <button id="logoutButton" class="logout-button" type="button"><span class="logout-icon">↪</span><span class="logout-text">Logout</span></button>
+  </div>
+</header>
 
-    <nav aria-label="Main navigation">
-      <a href="#">Home</a>
-      <a class="active" href="/stocks/">Stocks</a>
-      <a href="#">Brands</a>
-    </nav>
+<main class="container">
+  <section class="page-head">
+    <div><p class="eyebrow">STOCK MANAGEMENT</p><h1>Products</h1><p id="productCount">Loading inventory...</p></div>
+    <div class="actions"><button class="button" type="button" disabled>Download stock ▾</button><button class="button primary" type="button" disabled>+ Add Product</button></div>
+  </section>
 
-    <div class="nav-actions">
-      <span id="currentUser" class="nav-user">Admin</span>
-      <button id="logoutButton" class="button" type="button">Logout</button>
-    </div>
-  </header>
+  <div id="brandTabs" class="brand-tabs"><button class="selected" type="button" data-brand="">All brands</button></div>
+  <form id="stockFilters" class="filters">
+    <input id="searchInput" type="search" placeholder="Search article, product, brand or category" autocomplete="off">
+    <select id="brandFilter"><option value="">All brands</option></select>
+    <select id="categoryFilter"><option value="">All categories</option><option value="Shoes">Shoes</option><option value="Sandals">Sandals</option></select>
+    <select id="sizeFilter"><option value="">All sizes</option></select>
+    <select id="statusFilter"><option value="">All stock</option><option value="low">Low stock</option><option value="out">Out of stock</option><option value="good">Sufficient</option></select>
+    <button class="button" type="submit">Apply</button>
+    <button id="clearFilters" class="button ghost" type="button">Clear</button>
+  </form>
 
-  <main class="container">
-    <section class="page-head">
-      <div>
-        <p class="eyebrow">STOCK MANAGEMENT</p>
-        <h1>Products</h1>
-        <p id="productCount">Loading inventory...</p>
-      </div>
+  <div id="loadingState" class="empty-state"><h2>Loading inventory</h2><p>Loading products from Cloudflare D1...</p></div>
+  <div id="errorState" class="flash error" hidden></div>
+  <section id="productGrid" class="product-grid" hidden></section>
+</main>
+<footer>Inventory management only · SoleStock</footer>
+<button type="button" id="backToTopBtn" class="back-to-top-btn" aria-label="Go back to top">↑</button>
 
-      <div class="actions">
-        <button class="button" type="button" disabled>Download stock ▾</button>
-        <button class="button primary" type="button" disabled>+ Add Product</button>
-      </div>
-    </section>
+<script>
+const state={products:[],brands:[]};
+const $=id=>document.getElementById(id);
+const ui={grid:$('productGrid'),loading:$('loadingState'),error:$('errorState'),count:$('productCount'),search:$('searchInput'),brand:$('brandFilter'),category:$('categoryFilter'),size:$('sizeFilter'),status:$('statusFilter'),form:$('stockFilters'),clear:$('clearFilters'),tabs:$('brandTabs'),top:$('backToTopBtn'),logout:$('logoutButton'),user:$('currentUser')};
+const clean=(value,fallback='')=>{const result=String(value??'').trim();return result||fallback};
+const num=(value,fallback=0)=>{const result=Number(value);return Number.isFinite(result)?result:fallback};
+const node=(tag,className,text)=>{const element=document.createElement(tag);if(className)element.className=className;if(text!==undefined)element.textContent=text;return element};
 
-    <div id="brandTabs" class="brand-tabs">
-      <button class="selected" type="button" data-brand="">All brands</button>
-    </div>
+async function requireSession(){const response=await fetch('/api/session',{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error(`Session failed: ${response.status}`);const data=await response.json();if(!data.authenticated){location.replace('/login/');throw Error('Authentication required')}ui.user.textContent=data.user_id||'admin'}
 
-    <form id="stockFilters" class="filters">
-      <input id="searchInput" type="search" placeholder="Search article, product, brand or category" autocomplete="off">
-      <select id="brandFilter"><option value="">All brands</option></select>
-      <select id="categoryFilter">
-        <option value="">All categories</option>
-        <option value="Shoes">Shoes</option>
-        <option value="Sandals">Sandals</option>
-      </select>
-      <select id="sizeFilter"><option value="">All sizes</option></select>
-      <select id="statusFilter">
-        <option value="">All stock</option>
-        <option value="low">Low stock</option>
-        <option value="out">Out of stock</option>
-        <option value="good">Sufficient</option>
-      </select>
-      <button class="button" type="submit">Apply</button>
-      <button id="clearFilters" class="button ghost" type="button">Clear</button>
-    </form>
+function createProductCard(product){
+  const id=num(product.id);
+  const article=clean(product.article_name,`Product ${id}`);
+  const name=clean(product.product_name,article);
+  const brand=clean(product.brand,'Unknown brand');
+  const category=clean(product.category,'Uncategorized');
+  const sizes=Array.isArray(product.sizes)?product.sizes:[];
+  const calculated=sizes.reduce((total,item)=>total+num(item.quantity),0);
+  const total=num(product.total_quantity,calculated);
+  const status=clean(product.status,total===0?'out':'good').toLowerCase();
 
-    <div id="loadingState" class="empty-state">
-      <h2>Loading inventory</h2>
-      <p>Loading products from Cloudflare D1...</p>
-    </div>
+  const card=node('article','product-card');
+  const photo=node('div','photo');
+  if(clean(product.image_url)){
+    const image=node('img');image.src=product.image_url;image.alt=name;image.loading='lazy';image.decoding='async';
+    image.addEventListener('error',()=>{image.replaceWith(node('div','shoe-icon','◒'))},{once:true});
+    photo.appendChild(image);
+  }else photo.appendChild(node('div','shoe-icon','◒'));
+  photo.appendChild(node('span',`status ${status}`,status));
 
-    <div id="errorState" class="flash error" hidden></div>
-    <section id="productGrid" class="product-grid" hidden></section>
-  </main>
+  const body=node('div','product-body');
+  body.appendChild(node('div','article',article));
+  body.appendChild(node('h2','',name));
+  body.appendChild(node('p','',`${brand} · ${category}`));
 
-  <button type="button" id="backToTopBtn" class="back-to-top-btn" aria-label="Go back to top">↑</button>
-  <footer>Inventory management only · SoleStock</footer>
-
-  <script>
-    const state = { products: [], brands: [] };
-
-    const el = {
-      grid: document.getElementById("productGrid"),
-      loading: document.getElementById("loadingState"),
-      error: document.getElementById("errorState"),
-      count: document.getElementById("productCount"),
-      search: document.getElementById("searchInput"),
-      brand: document.getElementById("brandFilter"),
-      category: document.getElementById("categoryFilter"),
-      size: document.getElementById("sizeFilter"),
-      status: document.getElementById("statusFilter"),
-      form: document.getElementById("stockFilters"),
-      clear: document.getElementById("clearFilters"),
-      tabs: document.getElementById("brandTabs"),
-      top: document.getElementById("backToTopBtn"),
-      logout: document.getElementById("logoutButton"),
-      user: document.getElementById("currentUser")
-    };
-
-    function escapeHtml(value) {
-      return String(value ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
+  const sizesBox=node('div','sizes');
+  if(sizes.length){
+    for(const stock of sizes){
+      const quantity=num(stock.quantity),threshold=num(stock.minimum_threshold);
+      const badge=node('span',quantity===0?'zero':quantity<=threshold?'low':'');
+      badge.title=`Size ${clean(stock.size,'-')}: ${quantity} pairs`;
+      badge.appendChild(node('b','',clean(stock.size,'-')));
+      badge.appendChild(node('small','',String(quantity)));
+      sizesBox.appendChild(badge);
     }
+  }else{
+    const badge=node('span','no-size-record');badge.appendChild(node('b','','—'));badge.appendChild(node('small','','No sizes'));sizesBox.appendChild(badge);
+  }
+  body.appendChild(sizesBox);
 
-    async function requireSession() {
-      const response = await fetch("/api/session", {
-        cache: "no-store",
-        credentials: "same-origin"
-      });
+  const foot=node('div','product-foot');
+  const totalLabel=node('span','','Total ');totalLabel.appendChild(node('strong','',String(total)));foot.appendChild(totalLabel);
+  const actions=node('div');const edit=node('button','icon-button','Edit');edit.disabled=true;const remove=node('button','icon-button danger-text','Delete');remove.disabled=true;actions.append(edit,remove);foot.appendChild(actions);body.appendChild(foot);
+  card.append(photo,body);
+  return card;
+}
 
-      if (!response.ok) {
-        throw new Error(`Session check failed: ${response.status}`);
-      }
+function setupFilters(){
+  const brands=[...new Set([...state.brands,...state.products.map(product=>clean(product.brand)).filter(Boolean)])].sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));
+  const sizes=[...new Set(state.products.flatMap(product=>(Array.isArray(product.sizes)?product.sizes:[]).map(stock=>clean(stock.size)).filter(Boolean)))].sort((a,b)=>{const x=Number(a),y=Number(b);if(Number.isFinite(x)&&Number.isFinite(y))return x-y;return a.localeCompare(b,undefined,{numeric:true})});
+  ui.brand.replaceChildren(new Option('All brands',''));ui.tabs.replaceChildren();
+  const all=node('button','selected','All brands');all.type='button';all.dataset.brand='';ui.tabs.appendChild(all);
+  for(const brand of brands){ui.brand.add(new Option(brand,brand));const button=node('button','',brand);button.type='button';button.dataset.brand=brand;ui.tabs.appendChild(button)}
+  ui.size.replaceChildren(new Option('All sizes',''));for(const size of sizes)ui.size.add(new Option(size,size));
+}
 
-      const data = await response.json();
-      if (!data.authenticated) {
-        window.location.replace("/login/");
-        throw new Error("Authentication required");
-      }
+function getFilteredProducts(){
+  const search=ui.search.value.trim().toLowerCase(),brand=ui.brand.value.trim().toLowerCase(),category=ui.category.value.trim().toLowerCase(),size=ui.size.value.trim().toLowerCase(),status=ui.status.value.trim().toLowerCase();
+  return state.products.filter(product=>{const text=[product.article_name,product.product_name,product.brand,product.category,product.note].map(value=>clean(value)).join(' ').toLowerCase();const sizes=Array.isArray(product.sizes)?product.sizes:[];return(!search||text.includes(search))&&(!brand||clean(product.brand).toLowerCase()===brand)&&(!category||clean(product.category).toLowerCase()===category)&&(!size||sizes.some(stock=>clean(stock.size).toLowerCase()===size&&num(stock.quantity)>0))&&(!status||clean(product.status).toLowerCase()===status)});
+}
 
-      el.user.textContent = data.user_id || "Admin";
-    }
+function renderProducts(){const products=getFilteredProducts();ui.count.textContent=`${products.length} ${products.length===1?'matching article':'matching articles'}`;ui.grid.replaceChildren();if(products.length){for(const product of products)ui.grid.appendChild(createProductCard(product))}else{const empty=node('div','empty-state');empty.appendChild(node('h2','','No products found'));empty.appendChild(node('p','','Change the filters or add a new product.'));ui.grid.appendChild(empty)}}
 
-    function renderProduct(product) {
-      const sizes = Array.isArray(product.sizes) ? product.sizes : [];
-      const displayName = String(product.product_name || "").trim()
-        || String(product.article_name || "").trim()
-        || "Unnamed product";
-      const articleName = String(product.article_name || "").trim()
-        || "No article number";
-      const status = String(product.status || "good").toLowerCase();
-      const total = Number(product.total_quantity || 0);
+async function loadProducts(){const response=await fetch('/api/products',{credentials:'same-origin',cache:'no-store',headers:{accept:'application/json'}});if(response.status===401){location.replace('/login/');return}if(!response.ok)throw Error(`Products request failed: ${response.status}`);const data=await response.json();if(num(data.build)!==7)throw Error(`Expected API build 7, received ${data.build??'unknown'}`);state.products=Array.isArray(data.products)?data.products:[];state.brands=Array.isArray(data.brands)?data.brands:[];setupFilters();renderProducts();ui.loading.hidden=true;ui.error.hidden=true;ui.grid.hidden=false}
 
-      const sizeHtml = sizes.length
-        ? sizes.map((size) => {
-            const quantity = Number(size.quantity || 0);
-            const threshold = Number(size.minimum_threshold || 0);
-            const cssClass = quantity === 0 ? "zero" : quantity <= threshold ? "low" : "";
-            return `<span class="${cssClass}" title="Size ${escapeHtml(size.size)}: ${quantity} pairs"><b>${escapeHtml(size.size)}</b><small>${quantity}</small></span>`;
-          }).join("")
-        : `<span class="no-size-record">No sizes recorded</span>`;
-
-      const imageHtml = product.image_url
-        ? `<img src="${escapeHtml(product.image_url)}" alt="${escapeHtml(displayName)}" loading="lazy" decoding="async">`
-        : `<div class="shoe-icon" aria-label="No product image">◒</div>`;
-
-      const noteHtml = product.note
-        ? `<div class="product-note"><span class="product-note-icon" aria-hidden="true">✎</span><div><strong>Note</strong><p>${escapeHtml(product.note)}</p></div></div>`
-        : "";
-
-      return `<article class="product-card">
-        <div class="photo">${imageHtml}<span class="status ${escapeHtml(status)}">${escapeHtml(status)}</span></div>
-        <div class="product-body">
-          <div class="article">${escapeHtml(articleName)}</div>
-          <h2>${escapeHtml(displayName)}</h2>
-          <p>${escapeHtml(product.brand || "")} · ${escapeHtml(product.category || "")}</p>
-          ${noteHtml}
-          <div class="sizes">${sizeHtml}</div>
-          <div class="product-foot"><span>Total <strong>${total}</strong></span><div><button class="icon-button" disabled>Edit</button><button class="icon-button danger-text" disabled>Delete</button></div></div>
-        </div>
-      </article>`;
-    }
-
-    function populateFilters() {
-      const brands = [...new Set([
-        ...state.brands,
-        ...state.products.map((product) => String(product.brand || "").trim())
-      ].filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-
-      const sizes = [...new Set(state.products.flatMap((product) =>
-        Array.isArray(product.sizes)
-          ? product.sizes.map((size) => String(size.size || "").trim())
-          : []
-      ).filter(Boolean))].sort((a, b) => {
-        const an = Number(a);
-        const bn = Number(b);
-        if (Number.isFinite(an) && Number.isFinite(bn)) return an - bn;
-        if (Number.isFinite(an)) return -1;
-        if (Number.isFinite(bn)) return 1;
-        return a.localeCompare(b, undefined, { sensitivity: "base" });
-      });
-
-      el.brand.innerHTML = `<option value="">All brands</option>`;
-      el.tabs.innerHTML = `<button class="selected" type="button" data-brand="">All brands</button>`;
-
-      brands.forEach((brand) => {
-        const option = document.createElement("option");
-        option.value = brand;
-        option.textContent = brand;
-        el.brand.appendChild(option);
-
-        const button = document.createElement("button");
-        button.type = "button";
-        button.dataset.brand = brand;
-        button.textContent = brand;
-        el.tabs.appendChild(button);
-      });
-
-      el.size.innerHTML = `<option value="">All sizes</option>`;
-      sizes.forEach((size) => {
-        const option = document.createElement("option");
-        option.value = size;
-        option.textContent = size;
-        el.size.appendChild(option);
-      });
-    }
-
-    function filteredProducts() {
-      const search = el.search.value.trim().toLowerCase();
-      const brand = el.brand.value.trim().toLowerCase();
-      const category = el.category.value.trim().toLowerCase();
-      const size = el.size.value.trim().toLowerCase();
-      const status = el.status.value.trim().toLowerCase();
-
-      return state.products.filter((product) => {
-        const searchable = [
-          product.article_name,
-          product.product_name,
-          product.brand,
-          product.category,
-          product.note
-        ].join(" ").toLowerCase();
-
-        const productSizes = Array.isArray(product.sizes) ? product.sizes : [];
-
-        return (!search || searchable.includes(search))
-          && (!brand || String(product.brand || "").toLowerCase() === brand)
-          && (!category || String(product.category || "").toLowerCase() === category)
-          && (!size || productSizes.some((item) => String(item.size || "").toLowerCase() === size && Number(item.quantity || 0) > 0))
-          && (!status || String(product.status || "").toLowerCase() === status);
-      });
-    }
-
-    function renderProducts() {
-      const products = filteredProducts();
-      el.count.textContent = `${products.length} matching ${products.length === 1 ? "product" : "products"}`;
-      el.grid.innerHTML = products.length
-        ? products.map(renderProduct).join("")
-        : `<div class="empty-state"><h2>No products found</h2><p>Change the search or filter selection.</p></div>`;
-    }
-
-    async function loadProducts() {
-      const response = await fetch("/api/products", {
-        headers: { accept: "application/json" },
-        credentials: "same-origin",
-        cache: "no-store"
-      });
-
-      if (response.status === 401) {
-        window.location.replace("/login/");
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error(`Products request failed: ${response.status}`);
-      }
-
-      const data = await response.json();
-      state.products = Array.isArray(data.products) ? data.products : [];
-      state.brands = Array.isArray(data.brands) ? data.brands : [];
-
-      if (!state.products.length) {
-        throw new Error("D1 returned zero products");
-      }
-
-      populateFilters();
-      renderProducts();
-      el.loading.hidden = true;
-      el.error.hidden = true;
-      el.grid.hidden = false;
-    }
-
-    el.form.addEventListener("submit", (event) => {
-      event.preventDefault();
-      renderProducts();
-    });
-
-    el.clear.addEventListener("click", () => {
-      el.search.value = "";
-      el.brand.value = "";
-      el.category.value = "";
-      el.size.value = "";
-      el.status.value = "";
-      el.tabs.querySelectorAll("[data-brand]").forEach((button) =>
-        button.classList.toggle("selected", button.dataset.brand === "")
-      );
-      renderProducts();
-    });
-
-    el.tabs.addEventListener("click", (event) => {
-      const tab = event.target.closest("[data-brand]");
-      if (!tab) return;
-      el.brand.value = tab.dataset.brand || "";
-      el.tabs.querySelectorAll("[data-brand]").forEach((button) => button.classList.remove("selected"));
-      tab.classList.add("selected");
-      renderProducts();
-    });
-
-    el.logout.addEventListener("click", async () => {
-      el.logout.disabled = true;
-      await fetch("/api/logout", {
-        method: "POST",
-        credentials: "same-origin"
-      });
-      window.location.replace("/login/");
-    });
-
-    window.addEventListener("scroll", () => {
-      el.top.classList.toggle("show", window.scrollY > 300);
-    }, { passive: true });
-
-    el.top.addEventListener("click", () => {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    });
-
-    async function startApplication() {
-      try {
-        await requireSession();
-        await loadProducts();
-      } catch (error) {
-        console.error(error);
-        el.loading.hidden = true;
-        el.grid.hidden = true;
-        el.error.hidden = false;
-        el.error.textContent = `Unable to load inventory: ${error.message}`;
-      }
-    }
-
-    startApplication();
-  </script>
-</body>
-</html>
+ui.form.addEventListener('submit',event=>{event.preventDefault();renderProducts()});ui.clear.addEventListener('click',()=>{ui.search.value='';ui.brand.value='';ui.category.value='';ui.size.value='';ui.status.value='';ui.tabs.querySelectorAll('[data-brand]').forEach(button=>button.classList.toggle('selected',button.dataset.brand===''));renderProducts()});ui.tabs.addEventListener('click',event=>{const button=event.target.closest('[data-brand]');if(!button)return;ui.brand.value=button.dataset.brand||'';ui.tabs.querySelectorAll('[data-brand]').forEach(item=>item.classList.remove('selected'));button.classList.add('selected');renderProducts()});ui.logout.addEventListener('click',async()=>{await fetch('/api/logout',{method:'POST',credentials:'same-origin'});location.replace('/login/')});window.addEventListener('scroll',()=>ui.top.classList.toggle('show',scrollY>300),{passive:true});ui.top.addEventListener('click',()=>scrollTo({top:0,behavior:'smooth'}));
+(async()=>{try{await requireSession();await loadProducts()}catch(error){console.error(error);ui.loading.hidden=true;ui.grid.hidden=true;ui.error.hidden=false;ui.error.textContent=`Unable to load inventory: ${error.message}`}})();
+</script>
+</body></html>
