@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import re
 import time
 
 from workers import Response, WorkerEntrypoint
@@ -102,7 +103,7 @@ class Default(WorkerEntrypoint):
             return json_response({
                 "status": "ok",
                 "service": "solestock",
-                "build": 7,
+                "build": 9,
             })
 
         # GET /api/session
@@ -159,6 +160,7 @@ class Default(WorkerEntrypoint):
 
         protected_paths = (
             "/api/home",
+            "/api/brands",
             "/api/summary",
             "/api/products",
             "/api/debug",
@@ -169,6 +171,136 @@ class Default(WorkerEntrypoint):
                     {"error": "Authentication required"},
                     status=401,
                 )
+
+        if "/api/brands/" in path and not logged_in_user:
+            return json_response(
+                {"error": "Authentication required"},
+                status=401,
+            )
+
+        # GET/POST/PATCH/DELETE /api/brands
+        if path.endswith("/api/brands"):
+            if method == "GET":
+                result = await self.env.DB.prepare(
+                    """
+                    SELECT
+                        b.id,
+                        b.name,
+                        COUNT(p.id) AS product_count,
+                        COALESCE(SUM(s.quantity), 0) AS total_pairs
+                    FROM brand AS b
+                    LEFT JOIN product AS p
+                        ON LOWER(p.brand) = LOWER(b.name)
+                    LEFT JOIN size_stock AS s
+                        ON s.product_id = p.id
+                    GROUP BY b.id, b.name
+                    ORDER BY LOWER(b.name)
+                    """
+                ).all()
+                return json_response({
+                    "build": 9,
+                    "brands": [
+                        {
+                            "id": row_int(row, "id"),
+                            "name": row_text(row, "name", "Unnamed brand"),
+                            "product_count": row_int(row, "product_count"),
+                            "total_pairs": row_int(row, "total_pairs"),
+                        }
+                        for row in result.results
+                    ],
+                })
+
+            if method == "POST":
+                body = await read_json(request)
+                name = str(body.get("name", "")).strip()
+                if not name:
+                    return json_response({"error": "Brand name is required"}, 400)
+                if len(name) > 60:
+                    return json_response({"error": "Brand name must be 60 characters or fewer"}, 400)
+                existing = await self.env.DB.prepare(
+                    "SELECT id FROM brand WHERE LOWER(name) = LOWER(?1) LIMIT 1"
+                ).bind(name).first()
+                if existing:
+                    return json_response({"error": "Brand already exists"}, 409)
+                await self.env.DB.prepare(
+                    "INSERT INTO brand (name) VALUES (?1)"
+                ).bind(name).run()
+                created = await self.env.DB.prepare(
+                    "SELECT id, name FROM brand WHERE LOWER(name) = LOWER(?1) LIMIT 1"
+                ).bind(name).first()
+                return json_response({
+                    "message": "Brand added successfully.",
+                    "brand": {
+                        "id": row_int(created, "id"),
+                        "name": row_text(created, "name"),
+                        "product_count": 0,
+                        "total_pairs": 0,
+                    },
+                }, 201)
+
+            return json_response({"error": "Method not allowed"}, 405)
+
+        brand_match = re.search(r"/api/brands/(\d+)$", path)
+        if brand_match:
+            brand_id = int(brand_match.group(1))
+            current = await self.env.DB.prepare(
+                "SELECT id, name FROM brand WHERE id = ?1"
+            ).bind(brand_id).first()
+            if not current:
+                return json_response({"error": "Brand not found"}, 404)
+
+            current_name = row_text(current, "name")
+            product_count_row = await self.env.DB.prepare(
+                "SELECT COUNT(*) AS count FROM product WHERE LOWER(brand) = LOWER(?1)"
+            ).bind(current_name).first()
+            product_count = row_int(product_count_row, "count")
+
+            if method == "PATCH":
+                body = await read_json(request)
+                new_name = str(body.get("name", "")).strip()
+                if not new_name:
+                    return json_response({"error": "Brand name is required"}, 400)
+                if len(new_name) > 60:
+                    return json_response({"error": "Brand name must be 60 characters or fewer"}, 400)
+                duplicate = await self.env.DB.prepare(
+                    "SELECT id FROM brand WHERE LOWER(name) = LOWER(?1) AND id != ?2 LIMIT 1"
+                ).bind(new_name, brand_id).first()
+                if duplicate:
+                    return json_response({"error": "Brand already exists"}, 409)
+                await self.env.DB.batch([
+                    self.env.DB.prepare(
+                        "UPDATE product SET brand = ?1 WHERE LOWER(brand) = LOWER(?2)"
+                    ).bind(new_name, current_name),
+                    self.env.DB.prepare(
+                        "UPDATE brand SET name = ?1 WHERE id = ?2"
+                    ).bind(new_name, brand_id),
+                ])
+                return json_response({
+                    "message": "Brand renamed successfully.",
+                    "brand": {
+                        "id": brand_id,
+                        "name": new_name,
+                        "product_count": product_count,
+                    },
+                })
+
+            if method == "DELETE":
+                if product_count > 0:
+                    return json_response({
+                        "error": "This brand still has products"
+                    }, 409)
+                await self.env.DB.prepare(
+                    "DELETE FROM brand WHERE id = ?1"
+                ).bind(brand_id).run()
+                return json_response({
+                    "message": "Brand deleted successfully.",
+                    "deleted_brand": {
+                        "id": brand_id,
+                        "name": current_name,
+                    },
+                })
+
+            return json_response({"error": "Method not allowed"}, 405)
 
         # GET /api/debug
         if path.endswith("/api/debug") and method == "GET":
@@ -186,7 +318,7 @@ class Default(WorkerEntrypoint):
                 "products": row_int(products, "count"),
                 "sizes": row_int(sizes, "count"),
                 "brands": row_int(brands, "count"),
-                "build": 7,
+                "build": 9,
             })
 
         # GET /api/summary
@@ -256,10 +388,22 @@ class Default(WorkerEntrypoint):
             recent_rows = await self.env.DB.prepare(
                 """
                 SELECT
-                    id, brand, article_name, product_name,
-                    category, image_url, updated_at
-                FROM product
-                ORDER BY updated_at DESC
+                    p.id,
+                    p.brand,
+                    p.article_name,
+                    p.product_name,
+                    p.category,
+                    p.image_url,
+                    p.updated_at,
+                    p.minimum_threshold,
+                    COALESCE(SUM(s.quantity), 0) AS total_quantity
+                FROM product AS p
+                LEFT JOIN size_stock AS s ON s.product_id = p.id
+                GROUP BY
+                    p.id, p.brand, p.article_name, p.product_name,
+                    p.category, p.image_url, p.updated_at,
+                    p.minimum_threshold
+                ORDER BY p.updated_at DESC
                 LIMIT 5
                 """
             ).all()
@@ -298,6 +442,15 @@ class Default(WorkerEntrypoint):
                     "category": row_text(row, "category"),
                     "image_url": getattr(row, "image_url", None),
                     "updated_at": getattr(row, "updated_at", None),
+                    "total_quantity": row_int(row, "total_quantity"),
+                    "status": (
+                        "out"
+                        if row_int(row, "total_quantity") == 0
+                        else "low"
+                        if row_int(row, "total_quantity")
+                        <= row_int(row, "minimum_threshold")
+                        else "good"
+                    ),
                 })
 
             alerts_by_product = {}
@@ -330,7 +483,7 @@ class Default(WorkerEntrypoint):
                 "brands": brands,
                 "recent_products": recent_products,
                 "alerts": list(alerts_by_product.values()),
-                "build": 7,
+                "build": 9,
             })
 
         # GET /api/products
@@ -439,7 +592,7 @@ class Default(WorkerEntrypoint):
             ]
 
             return json_response({
-                "build": 7,
+                "build": 9,
                 "brands": brands,
                 "product_count": len(products),
                 "size_row_count": sum(len(item["sizes"]) for item in products),

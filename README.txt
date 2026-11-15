@@ -1,26 +1,31 @@
-SOLESTOCK RENDER-MATCHED BUILD 7
+SOLESTOCK RENDER BRANDS BUILD 9
 
-This build deliberately uses the same class names and card structure as the original Render stocks.html:
-product-grid, product-card, photo, status, product-body, article, sizes, product-foot, icon-button.
+Next migration: Brand management.
+UI is adapted only from existing Render templates/base.html, templates/brands.html and static/style.css.
+No stock increase/decrease/adjust buttons are included.
 
-It also uses the Render sizing rules:
-- 3-column grid
-- 260px image section
-- product-body as a visible flex column
-- size badge is 43px wide
-- product-foot is pinned to the bottom
+Features:
+- GET /api/brands
+- POST /api/brands
+- PATCH /api/brands/{id}
+- DELETE /api/brands/{id}
+- Add brand
+- Rename brand and update matching product.brand values
+- Delete only unused brands
+- Product counts and total pair counts
+- Home, Stocks and Brands navigation
+- Existing Build 8 Home dashboard and Render-matched Stocks page
 
 INSTALL
 1. Use cloudflare-migration branch.
 2. Extract ZIP.
-3. Copy pyproject.toml, wrangler.jsonc, src and public into the repository root.
+3. Copy pyproject.toml, wrangler.jsonc, src and public into repository root.
 4. Replace all files.
 5. Run:
    uv sync
    uv run python -m py_compile .\src\worker.py
    uv run pywrangler deploy
-6. Verify /health shows build 7.
-7. After login, verify /api/products shows build 7.
-8. Open /stocks/?build=7 and press Ctrl+F5.
-
-Required secrets: SESSION_SECRET, LOGIN_USER_ID, LOGIN_PASSWORD
+6. Verify /health shows build 9.
+7. Log in and open /api/brands, confirm build 9.
+8. Open /brands/?build=9 and test add, rename and delete-unused.
+9. Recheck /?build=9 and /stocks/?build=9.
