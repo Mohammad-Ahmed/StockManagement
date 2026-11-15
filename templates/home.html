@@ -1,0 +1,291 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    Dashboard · SoleStock
+
+
+{% endblock %}
+
+{% block content %}
+
+<section class="hero">
+    <div>
+        <p class="eyebrow">INVENTORY OVERVIEW</p>
+
+        <h1>Stock at a glance</h1>
+
+        <p>
+            Monitor every article, size, and pair from one
+            clean dashboard.
+        </p>
+    </div>
+
+    <a
+        class="button primary"
+        href="{{ url_for('stocks') }}"
+    >
+        Manage stock
+    </a>
+</section>
+
+<section class="summary-grid">
+    <article class="summary">
+        <span>Total products</span>
+        <strong>{{ totals.products }}</strong>
+    </article>
+
+    <article class="summary">
+        <span>Total pairs</span>
+        <strong>{{ totals.pairs }}</strong>
+    </article>
+
+    <article class="summary">
+        <span>Shoes available</span>
+        <strong>{{ totals.shoes }}</strong>
+    </article>
+
+    <article class="summary">
+        <span>Sandals available</span>
+        <strong>{{ totals.sandals }}</strong>
+    </article>
+
+    <article class="summary warning">
+        <span>Low stock</span>
+        <strong>{{ totals.low }}</strong>
+    </article>
+
+    <article class="summary danger">
+        <span>Out of stock</span>
+        <strong>{{ totals.out }}</strong>
+    </article>
+</section>
+
+<div class="dashboard-grid">
+
+    <section class="panel">
+        <div class="panel-head">
+            <h2>Brand-wise stock</h2>
+
+            <a href="{{ url_for('stocks') }}">
+                View all
+            </a>
+        </div>
+
+        {% for brand, pairs, count in brand_summary %}
+            <a
+                class="brand-row"
+                href="{{ url_for('stocks', brand=brand) }}"
+            >
+                <span>
+                    {{ brand }}
+
+                    <small>
+                        {{ count }}
+                        {{ 'article' if count == 1 else 'articles' }}
+                    </small>
+                </span>
+
+                <strong>
+                    {{ pairs }} pairs
+                </strong>
+            </a>
+        {% else %}
+            <p class="empty">
+                No brand stock is available.
+            </p>
+        {% endfor %}
+    </section>
+
+<section class="panel stock-alert-panel">
+    <div class="stock-alert-header">
+        <div>
+            <p class="stock-alert-eyebrow">INVENTORY ATTENTION</p>
+            <h2>Stock alerts</h2>
+            <p class="stock-alert-description">
+                Articles with one or more unavailable sizes
+            </p>
+        </div>
+
+        <div class="stock-alert-count">
+            <strong>{{ alerts|length }}</strong>
+            <span>{{ 'Article' if alerts|length == 1 else 'Articles' }}</span>
+        </div>
+    </div>
+
+    <form
+        class="stock-alert-filters"
+        method="get"
+        action="{{ url_for('home') }}"
+    >
+        <div class="stock-alert-filter-group">
+            <label for="stockAlertBrand">Brand</label>
+            <select id="stockAlertBrand" name="alert_brand">
+                <option value="">All brands</option>
+                {% for brand in alert_brands %}
+                    <option
+                        value="{{ brand }}"
+                        {% if selected_alert_brand|lower == brand|lower %}selected{% endif %}
+                    >
+                        {{ brand }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="stock-alert-filter-group">
+            <label for="stockAlertCategory">Category</label>
+            <select id="stockAlertCategory" name="alert_category">
+                <option value="">Shoes &amp; Sandals</option>
+                <option
+                    value="Shoes"
+                    {% if selected_alert_category|lower == 'shoes' %}selected{% endif %}
+                >
+                    Shoes
+                </option>
+                <option
+                    value="Sandals"
+                    {% if selected_alert_category|lower == 'sandals' %}selected{% endif %}
+                >
+                    Sandals
+                </option>
+            </select>
+        </div>
+
+        <button class="stock-alert-apply" type="submit">
+            Apply filters
+        </button>
+
+        <a class="stock-alert-clear" href="{{ url_for('home') }}">
+            Clear filters
+        </a>
+    </form>
+
+    <div class="stock-alert-list">
+        {% for alert in alerts %}
+            {% set product = alert.product %}
+
+            <a
+                class="stock-alert-card"
+                href="{{ url_for('product_form', product_id=product.id) }}"
+            >
+                <div class="stock-alert-card-top">
+                    <div class="stock-alert-identity">
+                        <span class="stock-alert-icon">!</span>
+
+                        <div class="stock-alert-information">
+                            <div class="stock-alert-article-row">
+                                <strong class="stock-alert-article">
+                                    {{ product.article_name }}
+                                </strong>
+                                <span class="stock-alert-category">
+                                    {{ product.category }}
+                                </span>
+                            </div>
+
+                            <span class="stock-alert-brand">
+                                {{ product.brand }}
+                            </span>
+                            <small class="stock-alert-product-name">
+                                {{ product.product_name }}
+                            </small>
+                        </div>
+                    </div>
+
+                    <span class="stock-alert-open">
+                        Edit article <span aria-hidden="true">→</span>
+                    </span>
+                </div>
+
+                <div class="stock-alert-size-area">
+                    <div class="stock-alert-size-heading">
+                        <span>Out-of-stock sizes</span>
+                        <strong>
+                            {{ alert.zero_sizes|length }}
+                            {{ 'size' if alert.zero_sizes|length == 1 else 'sizes' }}
+                        </strong>
+                    </div>
+
+                    <div class="stock-alert-size-list">
+                        {% for size in alert.zero_sizes %}
+                            <span class="stock-alert-size-badge">
+                                <span class="stock-alert-size-number">{{ size }}</span>
+                                <span class="stock-alert-size-quantity">0 pairs</span>
+                            </span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </a>
+        {% else %}
+            <div class="stock-alert-filter-empty">
+                <span class="stock-alert-filter-empty-icon">⌕</span>
+                <div>
+                    <strong>No matching stock alerts</strong>
+                    <p>
+                        No products with unavailable sizes match the selected
+                        brand and category.
+                    </p>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+</section>
+</div>
+
+<section class="panel recent">
+    <div class="panel-head">
+        <h2>Recently updated</h2>
+    </div>
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Article</th>
+                    <th>Product</th>
+                    <th>Brand</th>
+                    <th>Category</th>
+                    <th>Total</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for product in recent %}
+                    <tr>
+                        <td>
+                            <a
+                                href="{{ url_for(
+                                    'product_form',
+                                    product_id=product.id
+                                ) }}"
+                            >
+                                <strong>
+                                    {{ product.article_name }}
+                                </strong>
+                            </a>
+                        </td>
+
+                        <td>{{ product.product_name }}</td>
+                        <td>{{ product.brand }}</td>
+                        <td>{{ product.category }}</td>
+                        <td>{{ product.total_quantity }}</td>
+
+                        <td>
+                            <span class="status {{ product.status }}">
+                                {{ product.status }}
+                            </span>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="6">
+                            No products are available.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+{% endblock %}

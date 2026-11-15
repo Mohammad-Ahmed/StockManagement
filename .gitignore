@@ -1,0 +1,24 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Local database and backups
+inventory.db
+inventory-*.db
+*.zip
+
+# Runtime uploads
+static/uploads/*
+!static/uploads/.gitkeep
+
+# Editor files
+.vscode/
+
+Commands.txt

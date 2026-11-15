@@ -1,0 +1,1 @@
+function addSizeRow(){const t=document.getElementById('sizeTemplate');document.getElementById('sizeRows').appendChild(t.content.cloneNode(true));}document.addEventListener('click',e=>{if(!e.target.closest('.dropdown'))document.querySelectorAll('.dropdown-menu').forEach(x=>x.classList.remove('show'));});

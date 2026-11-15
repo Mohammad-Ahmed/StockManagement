@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    Manage Brands · SoleStock
+{% endblock %}
+
+{% block content %}
+
+<section class="page-head">
+    <div>
+        <p class="eyebrow">BRAND MANAGEMENT</p>
+
+        <h1>Manage brands</h1>
+
+        <p>
+            Add new brands, rename existing brands,
+            or remove unused brands.
+        </p>
+    </div>
+</section>
+
+<div class="brand-management-layout">
+
+    <section class="panel brand-add-panel">
+        <h2>Add a new brand</h2>
+
+        <p class="brand-help-text">
+            After adding a brand, it will appear automatically
+            in the product form, stock filters and dashboard.
+        </p>
+
+        <form
+            class="brand-add-form"
+            method="post"
+            action="{{ url_for('manage_brands') }}"
+        >
+            <label>
+                Brand name
+
+                <input
+                    type="text"
+                    name="brand_name"
+                    placeholder="e.g. Adidas"
+                    maxlength="60"
+                    required
+                >
+            </label>
+
+            <button
+                class="button primary"
+                type="submit"
+            >
+                + Add Brand
+            </button>
+        </form>
+    </section>
+
+    <section class="panel">
+        <div class="panel-head">
+            <div>
+                <h2>Available brands</h2>
+
+                <p>
+                    {{ brands|length }} brand(s) available
+                </p>
+            </div>
+        </div>
+
+        <div class="brand-management-list">
+
+            {% for brand in brands %}
+                <article class="brand-management-item">
+
+                    <div class="brand-management-info">
+                        <span class="brand-large-mark">
+                            {{ brand.name[:1]|upper }}
+                        </span>
+
+                        <div>
+                            <strong>{{ brand.name }}</strong>
+
+                            <small>
+                                {{ brand_product_counts[brand.id] }}
+                                product(s)
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="brand-management-actions">
+
+                        <form
+                            class="brand-rename-form"
+                            method="post"
+                            action="{{ url_for(
+                                'rename_brand',
+                                brand_id=brand.id
+                            ) }}"
+                        >
+                            <input
+                                type="text"
+                                name="brand_name"
+                                value="{{ brand.name }}"
+                                maxlength="60"
+                                aria-label="Rename {{ brand.name }}"
+                                required
+                            >
+
+                            <button
+                                class="button"
+                                type="submit"
+                            >
+                                Rename
+                            </button>
+                        </form>
+
+                        <form
+                            method="post"
+                            action="{{ url_for(
+                                'delete_brand',
+                                brand_id=brand.id
+                            ) }}"
+                            onsubmit="return confirm(
+                                'Delete the brand {{ brand.name }}?'
+                            )"
+                        >
+                            <button
+                                class="button brand-delete-button"
+                                type="submit"
+                                {% if brand_product_counts[brand.id] > 0 %}
+                                    disabled
+                                    title="This brand still has products"
+                                {% endif %}
+                            >
+                                Delete
+                            </button>
+                        </form>
+
+                    </div>
+                </article>
+
+            {% else %}
+                <div class="empty-state">
+                    <h2>No brands added</h2>
+
+                    <p>
+                        Use the form above to add the first brand.
+                    </p>
+                </div>
+            {% endfor %}
+
+        </div>
+    </section>
+
+</div>
+
+{% endblock %}

@@ -1,0 +1,369 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    {{ 'Edit' if product else 'Add' }} Product · SoleStock
+{% endblock %}
+
+{% block content %}
+
+<section class="page-head">
+    <div>
+        <p class="eyebrow">
+            {{ 'UPDATE ARTICLE' if product else 'NEW ARTICLE' }}
+        </p>
+
+        <h1>
+            {{ 'Edit ' + product.article_name if product else 'Add product' }}
+        </h1>
+
+        <p>
+            Maintain article details and size-wise quantities.
+        </p>
+    </div>
+</section>
+
+<form
+    class="product-form"
+    method="post"
+    enctype="multipart/form-data"
+>
+    <section class="panel">
+        <h2>Product details</h2>
+
+        <div class="form-grid">
+
+            <label>
+                Brand
+
+                <select name="brand" required>
+                    {% for b in brands %}
+                        <option
+                            value="{{ b }}"
+                            {{ 'selected' if product and product.brand == b else '' }}
+                        >
+                            {{ b }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </label>
+
+            <label>
+                Article Name / Number
+
+                <input
+                    type="text"
+                    name="article_name"
+                    required
+                    value="{{ product.article_name if product else '' }}"
+                    placeholder="e.g. SM-784"
+                >
+            </label>
+
+            <label class="wide">
+                Product name
+
+                <input
+                    type="text"
+                    name="product_name"
+                    required
+                    value="{{ product.product_name if product else '' }}"
+                    placeholder="e.g. Men's Casual Sandal"
+                >
+            </label>
+
+            <label>
+                Category
+
+                <select name="category" required>
+                    {% for c in categories %}
+                        <option
+                            value="{{ c }}"
+                            {{ 'selected' if product and product.category == c else '' }}
+                        >
+                            {{ c }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </label>
+
+            <label>
+                Product low-stock threshold
+
+                <input
+                    type="number"
+                    min="0"
+                    name="minimum_threshold"
+                    value="{{ product.minimum_threshold if product else 5 }}"
+                >
+            </label>
+
+            <div class="wide image-edit-section">
+                <label>Product image</label>
+
+{% if product and product.image_url %}
+    <div class="current-image-box">
+        <p class="current-image-title">
+            Current cloud image
+        </p>
+
+        <img
+            id="productImagePreview"
+            src="{{ product.image_url }}"
+            alt="{{ product.product_name }}"
+            class="current-product-image"
+        >
+
+        <p class="current-image-name">
+            Stored securely in Cloudinary
+        </p>
+    </div>
+
+{% elif product and product.image_filename %}
+    <div class="current-image-box">
+        <p class="current-image-title">
+            Current local image
+        </p>
+
+        <img
+            id="productImagePreview"
+            src="{{ url_for(
+                'static',
+                filename='uploads/' + product.image_filename
+            ) }}"
+            alt="{{ product.product_name }}"
+            class="current-product-image"
+        >
+
+        <p class="current-image-name">
+            {{ product.image_filename }}
+        </p>
+    </div>
+
+{% else %}
+    <div class="current-image-box no-current-image">
+        <div class="image-placeholder">
+            No image uploaded
+        </div>
+
+        <img
+            id="productImagePreview"
+            src=""
+            alt="Product image preview"
+            class="current-product-image hidden"
+        >
+    </div>
+{% endif %}
+
+                <label class="image-upload-label">
+                    {% if product and (product.image_url or product.image_filename) %}
+                        Replace image
+                    {% else %}
+                        Upload image
+                    {% endif %}
+
+                    <input
+                        id="productImageInput"
+                        type="file"
+                        name="image"
+                        accept=".png,.jpg,.jpeg,.webp"
+                    >
+                </label>
+
+                <small>
+                    Select a new image to replace the current image.
+                    Leave this field empty to keep the existing image.
+                    PNG, JPG, JPEG, or WEBP. Maximum 5 MB.
+                </small>
+            </div>
+
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-head">
+            <div>
+                <h2>Size-wise stock</h2>
+
+                <p>
+                    Enter each available size and its current quantity.
+                </p>
+            </div>
+
+            <button
+                class="button"
+                type="button"
+                onclick="addSizeRow()"
+            >
+                + Add size
+            </button>
+        </div>
+
+        <div id="sizeRows" class="size-rows">
+
+            {% if product and product.sizes %}
+
+                {% for s in product.sizes %}
+                    <div class="size-row">
+                        <label>
+                            Size
+
+                            <input
+                                name="size[]"
+                                value="{{ s.size }}"
+                                required
+                            >
+                        </label>
+
+                        <label>
+                            Quantity
+
+                            <input
+                                type="number"
+                                min="0"
+                                name="quantity[]"
+                                value="{{ s.quantity }}"
+                                required
+                            >
+                        </label>
+
+                        <label>
+                            Minimum alert
+
+                            <input
+                                type="number"
+                                min="0"
+                                name="size_threshold[]"
+                                value="{{ s.minimum_threshold }}"
+                                required
+                            >
+                        </label>
+
+                        <button
+                            type="button"
+                            class="remove"
+                            aria-label="Remove size {{ s.size }}"
+                            onclick="this.parentElement.remove()"
+                        >
+                            ×
+                        </button>
+                    </div>
+                {% endfor %}
+
+            {% else %}
+
+                {% for s in ['6', '7', '8', '9', '10', '11', '12'] %}
+                    <div class="size-row">
+                        <label>
+                            Size
+
+                            <input
+                                name="size[]"
+                                value="{{ s }}"
+                                required
+                            >
+                        </label>
+
+                        <label>
+                            Quantity
+
+                            <input
+                                type="number"
+                                min="0"
+                                name="quantity[]"
+                                value="0"
+                                required
+                            >
+                        </label>
+
+                        <label>
+                            Minimum alert
+
+                            <input
+                                type="number"
+                                min="0"
+                                name="size_threshold[]"
+                                value="0"
+                                required
+                            >
+                        </label>
+
+                        <button
+                            type="button"
+                            class="remove"
+                            aria-label="Remove size {{ s }}"
+                            onclick="this.parentElement.remove()"
+                        >
+                            ×
+                        </button>
+                    </div>
+                {% endfor %}
+
+            {% endif %}
+
+        </div>
+    </section>
+
+    <div class="form-actions">
+        <a
+            class="button ghost"
+            href="{{ url_for('stocks') }}"
+        >
+            Cancel
+        </a>
+
+        <button
+            class="button primary"
+            type="submit"
+        >
+            Save product
+        </button>
+    </div>
+</form>
+
+<template id="sizeTemplate">
+    <div class="size-row">
+        <label>
+            Size
+
+            <input
+                name="size[]"
+                required
+            >
+        </label>
+
+        <label>
+            Quantity
+
+            <input
+                type="number"
+                min="0"
+                name="quantity[]"
+                value="0"
+                required
+            >
+        </label>
+
+        <label>
+            Minimum alert
+
+            <input
+                type="number"
+                min="0"
+                name="size_threshold[]"
+                value="0"
+                required
+            >
+        </label>
+
+        <button
+            type="button"
+            class="remove"
+            aria-label="Remove size"
+            onclick="this.parentElement.remove()"
+        >
+            ×
+        </button>
+    </div>
+</template>
+
+{% endblock %}

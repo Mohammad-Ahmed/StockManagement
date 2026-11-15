@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1"
+    >
+
+    <title>Login · SoleStock</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body class="login-page">
+
+    <main class="login-layout">
+
+        <section class="login-visual-panel">
+            <div class="login-visual-content">
+
+                <a
+                    class="login-logo"
+                    href="{{ url_for('login') }}"
+                >
+                    <span class="login-logo-mark">S</span>
+
+                    <span>SoleStock</span>
+                </a>
+
+                <div class="login-visual-message">
+                    <p class="login-overline">
+                        SHOE STORE INVENTORY
+                    </p>
+
+                    <h1>
+                        Every article.<br>
+                        Every size.<br>
+                        One place.
+                    </h1>
+
+                    <p>
+                        Manage shoes, sandals, article numbers,
+                        size-wise quantities and stock alerts from
+                        a simple centralized dashboard.
+                    </p>
+                </div>
+
+                <div class="login-feature-list">
+                    <div class="login-feature">
+                        <span class="feature-number">01</span>
+
+                        <div>
+                            <strong>Size-wise tracking</strong>
+                            <small>Maintain separate quantities for every size.</small>
+                        </div>
+                    </div>
+
+                    <div class="login-feature">
+                        <span class="feature-number">02</span>
+
+                        <div>
+                            <strong>Stock alerts</strong>
+                            <small>Quickly identify low and unavailable stock.</small>
+                        </div>
+                    </div>
+
+                    <div class="login-feature">
+                        <span class="feature-number">03</span>
+
+                        <div>
+                            <strong>Inventory reports</strong>
+                            <small>Download Excel, PDF and CSV reports.</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="login-form-panel">
+            <div class="login-card">
+
+                <div class="login-mobile-logo">
+                    <span class="login-logo-mark">S</span>
+                    <span>SoleStock</span>
+                </div>
+
+                <div class="login-heading">
+                    <p class="eyebrow">
+                        SECURE INVENTORY ACCESS
+                    </p>
+
+                    <h2>Welcome back</h2>
+
+                    <p>
+                        Enter your credentials to continue to
+                        the inventory dashboard.
+                    </p>
+                </div>
+
+                {% with messages = get_flashed_messages(
+                    with_categories=true
+                ) %}
+                    {% for category, message in messages %}
+                        <div class="login-alert {{ category }}">
+                            <span class="login-alert-icon">
+                                {% if category == 'error' %}
+                                    !
+                                {% else %}
+                                    ✓
+                                {% endif %}
+                            </span>
+
+                            <span>{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                {% endwith %}
+
+                <form
+                    class="login-form"
+                    method="post"
+                    action="{{ url_for('login') }}"
+                >
+                    <label>
+                        <span>User ID</span>
+
+                        <input
+                            type="text"
+                            name="user_id"
+                            placeholder="Enter your User ID"
+                            autocomplete="username"
+                            autofocus
+                            required
+                        >
+                    </label>
+
+                    <label>
+                        <span>Password</span>
+
+                        <div class="password-field">
+                            <input
+                                id="loginPassword"
+                                type="password"
+                                name="password"
+                                placeholder="Enter your password"
+                                autocomplete="current-password"
+                                required
+                            >
+
+                            <button
+                                id="togglePassword"
+                                class="password-toggle"
+                                type="button"
+                                aria-label="Show password"
+                            >
+                                Show
+                            </button>
+                        </div>
+                    </label>
+
+                    <button
+                        class="login-submit-button"
+                        type="submit"
+                    >
+                        <span>Login to dashboard</span>
+                        <span aria-hidden="true">→</span>
+                    </button>
+                </form>
+
+                <div class="login-session-note">
+                    <span class="session-indicator"></span>
+
+                    <span>
+                        Access remains active during this browser session.
+                    </span>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        const passwordInput = document.getElementById(
+            "loginPassword"
+        );
+
+        const toggleButton = document.getElementById(
+            "togglePassword"
+        );
+
+        if (passwordInput && toggleButton) {
+            toggleButton.addEventListener(
+                "click",
+                function () {
+                    const passwordIsHidden =
+                        passwordInput.type === "password";
+
+                    passwordInput.type = passwordIsHidden
+                        ? "text"
+                        : "password";
+
+                    toggleButton.textContent = passwordIsHidden
+                        ? "Hide"
+                        : "Show";
+
+                    toggleButton.setAttribute(
+                        "aria-label",
+                        passwordIsHidden
+                            ? "Hide password"
+                            : "Show password"
+                    );
+                }
+            );
+        }
+    </script>
+
+</body>
+</html>

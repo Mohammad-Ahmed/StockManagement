@@ -1,0 +1,323 @@
+{% extends 'base.html' %}
+
+{% block title %}
+    Stocks · SoleStock
+{% endblock %}
+
+{% block content %}
+
+<section class="page-head">
+    <div>
+        <p class="eyebrow">STOCK MANAGEMENT</p>
+
+        <h1>Products</h1>
+
+        <p>
+            {{ products|length }}
+            {{ 'matching article' if products|length == 1 else 'matching articles' }}
+        </p>
+    </div>
+
+    <div class="actions">
+        <div class="dropdown">
+            <button
+                class="button"
+                type="button"
+                onclick="this.nextElementSibling.classList.toggle('show')"
+            >
+                Download stock ▾
+            </button>
+
+            <div class="dropdown-menu">
+                <a
+                    href="{{ url_for('export', fmt='xlsx') }}{% if filter_query %}?{{ filter_query }}{% endif %}"
+                >
+                    Excel (.xlsx)
+                </a>
+
+                <a
+                    href="{{ url_for('export', fmt='pdf') }}{% if filter_query %}?{{ filter_query }}{% endif %}"
+                >
+                    PDF (.pdf)
+                </a>
+
+                <a
+                    href="{{ url_for('export', fmt='csv') }}{% if filter_query %}?{{ filter_query }}{% endif %}"
+                >
+                    CSV (.csv)
+                </a>
+            </div>
+        </div>
+
+        <a
+            class="button primary"
+            href="{{ url_for('product_form') }}"
+        >
+            + Add Product
+        </a>
+    </div>
+</section>
+
+<div class="brand-tabs">
+    <a
+        class="{{ 'selected' if not request.args.get('brand') else '' }}"
+        href="{{ url_for('stocks') }}"
+    >
+        All brands
+    </a>
+
+    {% for brand in brands %}
+        <a
+            class="{{ 'selected' if request.args.get('brand') == brand else '' }}"
+            href="{{ url_for('stocks', brand=brand) }}"
+        >
+            {{ brand }}
+        </a>
+    {% endfor %}
+</div>
+
+<form
+    class="filters"
+    method="get"
+    action="{{ url_for('stocks') }}"
+>
+    <input
+        type="search"
+        name="q"
+        value="{{ request.args.get('q', '') }}"
+        placeholder="Search article, product, brand or category"
+        autocomplete="off"
+    >
+
+    <select name="brand">
+        <option value="">All brands</option>
+
+        {% for brand in brands %}
+            <option
+                value="{{ brand }}"
+                {{ 'selected'
+                   if request.args.get('brand') == brand
+                   else ''
+                }}
+            >
+                {{ brand }}
+            </option>
+        {% endfor %}
+    </select>
+
+    <select name="category">
+        <option value="">All categories</option>
+
+        {% for category in categories %}
+            <option
+                value="{{ category }}"
+                {{ 'selected'
+                   if request.args.get('category') == category
+                   else ''
+                }}
+            >
+                {{ category }}
+            </option>
+        {% endfor %}
+    </select>
+
+    <select name="size">
+        <option value="">All sizes</option>
+
+        {% for size in all_sizes %}
+            <option
+                value="{{ size }}"
+                {{ 'selected'
+                   if request.args.get('size') == size
+                   else ''
+                }}
+            >
+                {{ size }}
+            </option>
+        {% endfor %}
+    </select>
+
+    <select name="status">
+        <option value="">All stock</option>
+
+        <option
+            value="low"
+            {{ 'selected'
+               if request.args.get('status') == 'low'
+               else ''
+            }}
+        >
+            Low stock
+        </option>
+
+        <option
+            value="out"
+            {{ 'selected'
+               if request.args.get('status') == 'out'
+               else ''
+            }}
+        >
+            Out of stock
+        </option>
+
+        <option
+            value="good"
+            {{ 'selected'
+               if request.args.get('status') == 'good'
+               else ''
+            }}
+        >
+            Sufficient
+        </option>
+    </select>
+
+    <button
+        class="button"
+        type="submit"
+    >
+        Apply
+    </button>
+
+    <a
+        class="button ghost"
+        href="{{ url_for('stocks') }}"
+    >
+        Clear
+    </a>
+</form>
+
+<section class="product-grid">
+
+    {% for p in products %}
+
+        <article class="product-card">
+
+            <div class="photo">
+
+{% if p.image_url %}
+    <img
+        src="{{ p.image_url }}"
+        alt="{{ p.product_name }}"
+        loading="lazy"
+        decoding="async"
+    >
+{% elif p.image_filename %}
+    <img
+        src="{{ url_for(
+            'static',
+            filename='uploads/' + p.image_filename
+        ) }}"
+        alt="{{ p.product_name }}"
+        loading="lazy"
+        decoding="async"
+    >
+{% else %}
+    <div
+        class="shoe-icon"
+        aria-label="No product image"
+    >
+        ◒
+    </div>
+{% endif %}
+
+                <span class="status {{ p.status }}">
+                    {{ p.status }}
+                </span>
+            </div>
+
+            <div class="product-body">
+
+                <div class="article">
+                    {{ p.article_name }}
+                </div>
+
+                <h2>
+                    {{ p.product_name }}
+                </h2>
+
+                <p>
+                    {{ p.brand }} · {{ p.category }}
+                </p>
+
+                <div class="sizes">
+                    {% for stock in p.sizes | sort(attribute='size') %}
+                        <span
+                            class="{{
+                                'zero'
+                                if stock.quantity == 0
+                                else 'low'
+                                if stock.quantity <= stock.minimum_threshold
+                                else ''
+                            }}"
+                            title="Size {{ stock.size }}: {{ stock.quantity }} pairs"
+                        >
+                            <b>{{ stock.size }}</b>
+                            <small>{{ stock.quantity }}</small>
+                        </span>
+                    {% endfor %}
+                </div>
+
+                <div class="product-foot">
+                    <span>
+                        Total
+                        <strong>
+                            {{ p.total_quantity }}
+                        </strong>
+                    </span>
+
+                    <div>
+                        <a
+                            class="icon-button"
+                            href="{{ url_for(
+                                'product_form',
+                                product_id=p.id
+                            ) }}"
+                        >
+                            Edit
+                        </a>
+
+                        <form
+                            class="inline"
+                            method="post"
+                            action="{{ url_for(
+                                'delete_product',
+                                product_id=p.id
+                            ) }}"
+                            onsubmit="return confirm(
+                                'Delete {{ p.article_name }} permanently?'
+                            )"
+                        >
+                            <button
+                                class="icon-button danger-text"
+                                type="submit"
+                            >
+                                Delete
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </article>
+
+    {% else %}
+
+        <div class="empty-state">
+            <h2>No products found</h2>
+
+            <p>
+                Change the filters or add a new product.
+            </p>
+
+            <a
+                class="button primary"
+                href="{{ url_for('product_form') }}"
+            >
+                + Add Product
+            </a>
+        </div>
+
+    {% endfor %}
+
+</section>
+
+{% endblock %}

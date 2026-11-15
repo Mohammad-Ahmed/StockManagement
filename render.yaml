@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: solestock
+    runtime: python
+    plan: free
+
+    buildCommand: bash build.sh
+
+    startCommand: >
+      gunicorn
+      --bind 0.0.0.0:$PORT
+      --workers 2
+      --threads 2
+      --timeout 120
+      app:app
+
+    healthCheckPath: /login
+
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.7
+
+      - key: FLASK_ENV
+        value: production
+
+      - key: DATABASE_URL
+        sync: false
+
+      - key: CLOUDINARY_URL
+        sync: false
+
+      - key: SECRET_KEY
+        sync: false
+
+      - key: LOGIN_USER_ID
+        sync: false
+
+      - key: LOGIN_PASSWORD
+        sync: false
