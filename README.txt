@@ -1,31 +1,25 @@
-SOLESTOCK CLOUDFLARE FIXED BUILD 2
+SOLESTOCK BUILD 4 UPDATE
 
-WHY THIS FIXES THE LOADING SCREEN
-- All Stocks-page JavaScript is embedded directly inside public/stocks/index.html.
-- The browser no longer depends on /stocks.js, MIME types, or an old cached JavaScript file.
-- /api/products now returns an explicit brands list from the D1 brand table.
-- /api/debug shows the actual remote D1 counts and build number.
+This update contains the corrected src/worker.py with:
+- /health build 4
+- /api/session
+- /api/login
+- /api/logout
+- /api/debug
+- /api/summary
+- /api/home
+- /api/products
 
-REPLACE THESE ITEMS IN THE ROOT OF cloudflare-migration:
-- pyproject.toml
-- wrangler.jsonc
-- src folder
-- public folder
+INSTALL
+1. Extract this ZIP.
+2. Copy the src folder into the root of your SoleStock repository.
+3. Select Replace when asked to replace src/worker.py.
+4. Keep your currently working public folder, pyproject.toml, and wrangler.jsonc unchanged.
+5. Run:
+   uv run python -m py_compile .\src\worker.py
+   uv run pywrangler deploy
 
-RUN:
-uv sync
-uv run python -m py_compile .\src\worker.py
-uv run pywrangler deploy
-
-VERIFY:
-https://solestock-cloudflare.mohammadahmedpanjwani.workers.dev/api/debug
-Expected build: 2 and non-zero products/sizes/brands.
-
-https://solestock-cloudflare.mohammadahmedpanjwani.workers.dev/api/products
-Expected build: 2, a brands array, products array, and size_row_count > 0.
-
-OPEN:
-https://solestock-cloudflare.mohammadahmedpanjwani.workers.dev/stocks/?build=2
-Then Ctrl+F5.
-
-A small 'Cloudflare build 2' label confirms the new HTML is live.
+VERIFY
+- /health returns build 4
+- Log in
+- /api/home returns totals, brands, recent_products, alerts and build 4
