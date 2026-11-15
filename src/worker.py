@@ -1,8 +1,11 @@
+import csv
 import hashlib
+import io
 import hmac
 import json
 import re
 import time
+from datetime import datetime
 
 from workers import Response, WorkerEntrypoint
 
@@ -103,7 +106,7 @@ class Default(WorkerEntrypoint):
             return json_response({
                 "status": "ok",
                 "service": "solestock",
-                "build": 10,
+                "build": 11,
             })
 
         # GET /api/session
@@ -161,6 +164,7 @@ class Default(WorkerEntrypoint):
         protected_paths = (
             "/api/home",
             "/api/brands",
+            "/api/export/csv",
             "/api/summary",
             "/api/products",
             "/api/debug",
@@ -201,7 +205,7 @@ class Default(WorkerEntrypoint):
                     """
                 ).all()
                 return json_response({
-                    "build": 10,
+                    "build": 11,
                     "brands": [
                         {
                             "id": row_int(row, "id"),
@@ -321,7 +325,7 @@ class Default(WorkerEntrypoint):
                 "products": row_int(products, "count"),
                 "sizes": row_int(sizes, "count"),
                 "brands": row_int(brands, "count"),
-                "build": 10,
+                "build": 11,
             })
 
         # GET /api/summary
@@ -486,7 +490,7 @@ class Default(WorkerEntrypoint):
                 "brands": brands,
                 "recent_products": recent_products,
                 "alerts": list(alerts_by_product.values()),
-                "build": 10,
+                "build": 11,
             })
 
         # GET/PUT /api/product/{id}
@@ -513,7 +517,7 @@ class Default(WorkerEntrypoint):
                     """
                 ).bind(product_id).all()
                 return json_response({
-                    "build": 10,
+                    "build": 11,
                     "product": {
                         "id": product_id,
                         "brand": row_text(found, "brand"),
@@ -591,7 +595,130 @@ class Default(WorkerEntrypoint):
                 await self.env.DB.batch(statements)
                 return json_response({"message": "Product saved successfully.", "product_id": product_id})
 
+            if method == "DELETE":
+                image_public_id = getattr(found, "image_public_id", None)
+                image_url = getattr(found, "image_url", None)
+                await self.env.DB.batch([
+                    self.env.DB.prepare(
+                        "DELETE FROM stock_movement WHERE product_id = ?1"
+                    ).bind(product_id),
+                    self.env.DB.prepare(
+                        "DELETE FROM size_stock WHERE product_id = ?1"
+                    ).bind(product_id),
+                    self.env.DB.prepare(
+                        "DELETE FROM product WHERE id = ?1"
+                    ).bind(product_id),
+                ])
+                return json_response({
+                    "message": "Product deleted successfully.",
+                    "deleted_product": {
+                        "id": product_id,
+                        "article_name": row_text(found, "article_name"),
+                        "product_name": row_text(found, "product_name"),
+                        "image_public_id": image_public_id,
+                        "image_url": image_url,
+                    },
+                    "image_cleanup_deferred": bool(image_public_id or image_url),
+                })
+
             return json_response({"error": "Method not allowed"}, 405)
+
+        # GET /api/export/csv
+        if path.endswith("/api/export/csv") and method == "GET":
+            rows = await self.env.DB.prepare(
+                """
+                SELECT
+                    p.id,
+                    p.brand,
+                    p.article_name,
+                    p.product_name,
+                    p.category,
+                    p.minimum_threshold,
+                    p.updated_at,
+                    s.size,
+                    s.quantity
+                FROM product AS p
+                LEFT JOIN size_stock AS s ON s.product_id = p.id
+                ORDER BY
+                    LOWER(p.product_name),
+                    LOWER(p.article_name),
+                    CASE WHEN s.size GLOB '[0-9]*'
+                        THEN CAST(s.size AS REAL) ELSE 999999 END,
+                    LOWER(s.size)
+                """
+            ).all()
+
+            products = {}
+            for row in rows.results:
+                product_id = row_int(row, "id")
+                if product_id not in products:
+                    products[product_id] = {
+                        "brand": row_text(row, "brand"),
+                        "article": row_text(row, "article_name"),
+                        "name": row_text(row, "product_name"),
+                        "category": row_text(row, "category"),
+                        "threshold": row_int(row, "minimum_threshold"),
+                        "updated_at": row_text(row, "updated_at"),
+                        "sizes": [],
+                    }
+                if getattr(row, "size", None) is not None:
+                    products[product_id]["sizes"].append({
+                        "size": row_text(row, "size"),
+                        "quantity": row_int(row, "quantity"),
+                    })
+
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow([
+                "Brand",
+                "Article Name",
+                "Product Name",
+                "Category",
+                "Available Sizes",
+                "Size-wise Quantities",
+                "Total Quantity",
+                "Stock Status",
+                "Updated At",
+            ])
+            for product in products.values():
+                total = sum(item["quantity"] for item in product["sizes"])
+                status = (
+                    "Out"
+                    if total == 0
+                    else "Low"
+                    if total <= product["threshold"]
+                    else "Good"
+                )
+                writer.writerow([
+                    product["brand"],
+                    product["article"],
+                    product["name"],
+                    product["category"],
+                    ", ".join(
+                        item["size"]
+                        for item in product["sizes"]
+                        if item["quantity"] > 0
+                    ),
+                    ", ".join(
+                        f'{item["size"]}: {item["quantity"]}'
+                        for item in product["sizes"]
+                    ),
+                    total,
+                    status,
+                    product["updated_at"],
+                ])
+
+            stamp = datetime.now().strftime("%Y%m%d_%H%M")
+            return Response(
+                "\ufeff" + output.getvalue(),
+                headers={
+                    "content-type": "text/csv; charset=utf-8",
+                    "content-disposition": (
+                        f'attachment; filename="shoe_stock_{stamp}.csv"'
+                    ),
+                    "cache-control": "no-store",
+                },
+            )
 
         # POST /api/products
         if path.endswith("/api/products") and method == "POST":
@@ -757,7 +884,7 @@ class Default(WorkerEntrypoint):
             ]
 
             return json_response({
-                "build": 10,
+                "build": 11,
                 "brands": brands,
                 "product_count": len(products),
                 "size_row_count": sum(len(item["sizes"]) for item in products),
