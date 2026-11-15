@@ -3,10 +3,7 @@
   "name": "solestock-cloudflare",
   "main": "src/worker.py",
   "compatibility_date": "2026-11-15",
-  "compatibility_flags": [
-    "python_workers"
-  ],
-
+  "compatibility_flags": ["python_workers"],
   "d1_databases": [
     {
       "binding": "DB",
@@ -14,7 +11,11 @@
       "database_id": "61517f77-cc59-48ce-a032-2faa83bc6801"
     }
   ],
-
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": false
+  },
   "observability": {
     "enabled": true
   }

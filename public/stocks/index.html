@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stocks · SoleStock</title>
+  <link rel="stylesheet" href="/style.css?v=1">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/stocks/"><span class="brand-mark">S</span><span>SoleStock</span></a>
+    <nav><a href="#">Home</a><a class="active" href="/stocks/">Stocks</a><a href="#">Brands</a></nav>
+    <div class="nav-actions"><span class="nav-user">Admin</span><button class="button" disabled>Logout</button></div>
+  </header>
+
+  <main class="container">
+    <section class="page-head">
+      <div><p class="eyebrow">STOCK MANAGEMENT</p><h1>Products</h1><p id="productCount">Loading inventory...</p><small class="build-marker">Cloudflare build 2</small></div>
+      <div class="actions"><button class="button" disabled>Download stock ▾</button><button class="button primary" disabled>+ Add Product</button></div>
+    </section>
+
+    <div id="brandTabs" class="brand-tabs"><button class="selected" type="button" data-brand="">All brands</button></div>
+
+    <form id="stockFilters" class="filters">
+      <input id="searchInput" type="search" placeholder="Search article, product, brand or category" autocomplete="off">
+      <select id="brandFilter"><option value="">All brands</option></select>
+      <select id="categoryFilter"><option value="">All categories</option><option value="Shoes">Shoes</option><option value="Sandals">Sandals</option></select>
+      <select id="sizeFilter"><option value="">All sizes</option></select>
+      <select id="statusFilter"><option value="">All stock</option><option value="low">Low stock</option><option value="out">Out of stock</option><option value="good">Sufficient</option></select>
+      <button class="button" type="submit">Apply</button>
+      <button id="clearFilters" class="button ghost" type="button">Clear</button>
+    </form>
+
+    <div id="loadingState" class="empty-state"><h2>Loading inventory</h2><p>Loading products from Cloudflare D1...</p></div>
+    <div id="errorState" class="flash error" hidden></div>
+    <section id="productGrid" class="product-grid" hidden></section>
+  </main>
+
+  <button type="button" id="backToTopBtn" class="back-to-top-btn" aria-label="Go back to top">↑</button>
+  <footer>Inventory management only · SoleStock</footer>
+  <script>
+const state = { products: [], brands: [] };
+
+const el = {
+  grid: document.getElementById("productGrid"),
+  loading: document.getElementById("loadingState"),
+  error: document.getElementById("errorState"),
+  count: document.getElementById("productCount"),
+  search: document.getElementById("searchInput"),
+  brand: document.getElementById("brandFilter"),
+  category: document.getElementById("categoryFilter"),
+  size: document.getElementById("sizeFilter"),
+  status: document.getElementById("statusFilter"),
+  form: document.getElementById("stockFilters"),
+  clear: document.getElementById("clearFilters"),
+  tabs: document.getElementById("brandTabs"),
+  top: document.getElementById("backToTopBtn"),
+};
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function renderProduct(product) {
+  const sizes = Array.isArray(product.sizes) ? product.sizes : [];
+  const displayName = String(product.product_name || "").trim() || String(product.article_name || "").trim() || "Unnamed product";
+  const articleName = String(product.article_name || "").trim() || "No article number";
+  const status = String(product.status || "good").toLowerCase();
+  const total = Number(product.total_quantity || 0);
+
+  const sizeHtml = sizes.length ? sizes.map((size) => {
+    const quantity = Number(size.quantity || 0);
+    const threshold = Number(size.minimum_threshold || 0);
+    const cssClass = quantity === 0 ? "zero" : quantity <= threshold ? "low" : "";
+    return `<span class="${cssClass}" title="Size ${escapeHtml(size.size)}: ${quantity} pairs"><b>${escapeHtml(size.size)}</b><small>${quantity}</small></span>`;
+  }).join("") : `<span class="no-size-record">No sizes recorded</span>`;
+
+  const imageHtml = product.image_url
+    ? `<img src="${escapeHtml(product.image_url)}" alt="${escapeHtml(displayName)}" loading="lazy" decoding="async">`
+    : `<div class="shoe-icon" aria-label="No product image">◒</div>`;
+
+  const noteHtml = product.note
+    ? `<div class="product-note"><span class="product-note-icon" aria-hidden="true">✎</span><div><strong>Note</strong><p>${escapeHtml(product.note)}</p></div></div>`
+    : "";
+
+  return `<article class="product-card">
+    <div class="photo">${imageHtml}<span class="status ${escapeHtml(status)}">${escapeHtml(status)}</span></div>
+    <div class="product-body">
+      <div class="article">${escapeHtml(articleName)}</div>
+      <h2>${escapeHtml(displayName)}</h2>
+      <p>${escapeHtml(product.brand || "")} · ${escapeHtml(product.category || "")}</p>
+      ${noteHtml}
+      <div class="sizes">${sizeHtml}</div>
+      <div class="product-foot"><span>Total <strong>${total}</strong></span><div><button class="icon-button" disabled>Edit</button><button class="icon-button danger-text" disabled>Delete</button></div></div>
+    </div>
+  </article>`;
+}
+
+function populateFilters() {
+  const brands = [...new Set([...(state.brands || []), ...state.products.map((p) => String(p.brand || "").trim())].filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  const sizes = [...new Set(state.products.flatMap((p) => Array.isArray(p.sizes) ? p.sizes.map((s) => String(s.size || "").trim()) : []).filter(Boolean))].sort((a, b) => {
+    const an = Number(a), bn = Number(b);
+    if (Number.isFinite(an) && Number.isFinite(bn)) return an - bn;
+    if (Number.isFinite(an)) return -1;
+    if (Number.isFinite(bn)) return 1;
+    return a.localeCompare(b, undefined, { sensitivity: "base" });
+  });
+
+  el.brand.innerHTML = `<option value="">All brands</option>`;
+  el.tabs.innerHTML = `<button class="selected" type="button" data-brand="">All brands</button>`;
+  brands.forEach((brand) => {
+    el.brand.insertAdjacentHTML("beforeend", `<option value="${escapeHtml(brand)}">${escapeHtml(brand)}</option>`);
+    el.tabs.insertAdjacentHTML("beforeend", `<button type="button" data-brand="${escapeHtml(brand)}">${escapeHtml(brand)}</button>`);
+  });
+
+  el.size.innerHTML = `<option value="">All sizes</option>`;
+  sizes.forEach((size) => el.size.insertAdjacentHTML("beforeend", `<option value="${escapeHtml(size)}">${escapeHtml(size)}</option>`));
+}
+
+function filteredProducts() {
+  const search = el.search.value.trim().toLowerCase();
+  const brand = el.brand.value.trim().toLowerCase();
+  const category = el.category.value.trim().toLowerCase();
+  const size = el.size.value.trim().toLowerCase();
+  const status = el.status.value.trim().toLowerCase();
+
+  return state.products.filter((product) => {
+    const searchable = [product.article_name, product.product_name, product.brand, product.category, product.note].join(" ").toLowerCase();
+    const productSizes = Array.isArray(product.sizes) ? product.sizes : [];
+    return (!search || searchable.includes(search))
+      && (!brand || String(product.brand || "").toLowerCase() === brand)
+      && (!category || String(product.category || "").toLowerCase() === category)
+      && (!size || productSizes.some((s) => String(s.size || "").toLowerCase() === size && Number(s.quantity || 0) > 0))
+      && (!status || String(product.status || "").toLowerCase() === status);
+  });
+}
+
+function renderProducts() {
+  const products = filteredProducts();
+  el.count.textContent = `${products.length} matching ${products.length === 1 ? "product" : "products"}`;
+  el.grid.innerHTML = products.length
+    ? products.map(renderProduct).join("")
+    : `<div class="empty-state"><h2>No products found</h2><p>Change the search or filter selection.</p></div>`;
+}
+
+async function loadProducts() {
+  try {
+    const response = await fetch("/api/products", { headers: { accept: "application/json" }, cache: "no-store" });
+    if (!response.ok) throw new Error(`Products request failed: ${response.status}`);
+    const data = await response.json();
+    state.products = Array.isArray(data.products) ? data.products : [];
+    state.brands = Array.isArray(data.brands) ? data.brands : [];
+    if (!state.products.length) throw new Error("D1 returned zero products");
+    populateFilters();
+    renderProducts();
+    el.loading.hidden = true;
+    el.error.hidden = true;
+    el.grid.hidden = false;
+  } catch (error) {
+    console.error(error);
+    el.loading.hidden = true;
+    el.grid.hidden = true;
+    el.error.hidden = false;
+    el.error.classList.add("error-detail");
+    el.error.textContent = `Unable to load inventory: ${error.message}\nOpen /api/debug and /api/products to verify D1.`;
+  }
+}
+
+el.form.addEventListener("submit", (event) => { event.preventDefault(); renderProducts(); });
+el.clear.addEventListener("click", () => {
+  el.search.value = ""; el.brand.value = ""; el.category.value = ""; el.size.value = ""; el.status.value = "";
+  el.tabs.querySelectorAll("[data-brand]").forEach((button) => button.classList.toggle("selected", button.dataset.brand === ""));
+  renderProducts();
+});
+el.tabs.addEventListener("click", (event) => {
+  const tab = event.target.closest("[data-brand]");
+  if (!tab) return;
+  el.brand.value = tab.dataset.brand || "";
+  el.tabs.querySelectorAll("[data-brand]").forEach((button) => button.classList.remove("selected"));
+  tab.classList.add("selected");
+  renderProducts();
+});
+window.addEventListener("scroll", () => el.top.classList.toggle("show", window.scrollY > 300), { passive: true });
+el.top.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+
+loadProducts();
+
+</script>
+</body>
+</html>

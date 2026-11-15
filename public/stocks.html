@@ -1,0 +1,249 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1"
+    >
+
+    <title>Stocks · SoleStock</title>
+
+    <link
+        rel="stylesheet"
+        href="/style.css"
+    >
+
+    <style>
+        .cloudflare-status {
+            margin-bottom: 18px;
+            padding: 11px 14px;
+            border: 1px solid #d9c9b7;
+            border-radius: 10px;
+            color: #705435;
+            background: #fbf7f0;
+        }
+
+        .stock-loading {
+            padding: 60px 20px;
+            text-align: center;
+            color: #6e6a64;
+        }
+
+        .stock-error {
+            padding: 20px;
+            border: 1px solid #eccaca;
+            border-radius: 10px;
+            color: #b84040;
+            background: #fff7f7;
+        }
+
+        .cloudflare-product-grid {
+            display: grid;
+            grid-template-columns:
+                repeat(3, minmax(0, 1fr));
+            gap: 18px;
+        }
+
+        .cloudflare-product-card {
+            min-width: 0;
+            border: 1px solid #dedad2;
+            border-radius: 15px;
+            overflow: hidden;
+            background: #ffffff;
+        }
+
+        .cloudflare-product-image {
+            height: 250px;
+            display: grid;
+            place-items: center;
+            position: relative;
+            background: #ece8df;
+        }
+
+        .cloudflare-product-image img {
+            width: 100%;
+            height: 100%;
+            padding: 10px;
+            object-fit: contain;
+        }
+
+        .cloudflare-product-body {
+            padding: 18px;
+        }
+
+        .cloudflare-article {
+            color: #9a7040;
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .cloudflare-product-body h2 {
+            margin: 4px 0;
+            font-size: 19px;
+        }
+
+        .cloudflare-meta {
+            margin: 0 0 15px;
+            color: #6e6a64;
+        }
+
+        .cloudflare-note {
+            margin-bottom: 15px;
+            padding: 10px 12px;
+            border: 1px solid #e4d8c8;
+            border-radius: 9px;
+            white-space: pre-wrap;
+            background: #fbf7f0;
+        }
+
+        .cloudflare-sizes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+        }
+
+        .cloudflare-size {
+            width: 45px;
+            border: 1px solid #dedad2;
+            border-radius: 8px;
+            overflow: hidden;
+            text-align: center;
+        }
+
+        .cloudflare-size strong,
+        .cloudflare-size small {
+            display: block;
+            padding: 4px;
+        }
+
+        .cloudflare-size small {
+            color: #2f7d55;
+            background: #edf7f1;
+        }
+
+        .cloudflare-size.low small {
+            color: #b7791f;
+            background: #fff3d6;
+        }
+
+        .cloudflare-size.zero small {
+            color: #b84040;
+            background: #fae3e3;
+        }
+
+        .cloudflare-total {
+            margin-top: 15px;
+            padding-top: 12px;
+            border-top: 1px solid #dedad2;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        @media (max-width: 1000px) {
+            .cloudflare-product-grid {
+                grid-template-columns:
+                    repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 680px) {
+            .cloudflare-product-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="container">
+        <section class="page-head">
+            <div>
+                <p class="eyebrow">
+                    CLOUDFLARE D1 INVENTORY
+                </p>
+
+                <h1>Stocks</h1>
+
+                <p id="productCount">
+                    Loading inventory...
+                </p>
+            </div>
+        </section>
+
+        <div class="cloudflare-status">
+            Read-only migration preview. The live Render website
+            continues using Neon.
+        </div>
+
+        <form
+            id="stockFilters"
+            class="filters"
+        >
+            <input
+                id="searchInput"
+                type="search"
+                placeholder="Search product, article, brand or note"
+            >
+
+            <select id="brandFilter">
+                <option value="">
+                    All brands
+                </option>
+            </select>
+
+            <select id="categoryFilter">
+                <option value="">
+                    All categories
+                </option>
+
+                <option value="Shoes">
+                    Shoes
+                </option>
+
+                <option value="Sandals">
+                    Sandals
+                </option>
+            </select>
+
+            <button
+                class="button"
+                type="submit"
+            >
+                Apply
+            </button>
+
+            <button
+                id="clearFilters"
+                class="button ghost"
+                type="button"
+            >
+                Clear
+            </button>
+        </form>
+
+        <div
+            id="loadingState"
+            class="stock-loading"
+        >
+            Loading products from Cloudflare D1...
+        </div>
+
+        <div
+            id="errorState"
+            class="stock-error"
+            hidden
+        ></div>
+
+        <section
+            id="productGrid"
+            class="cloudflare-product-grid"
+            hidden
+        ></section>
+    </main>
+
+    <script src="/stocks.js?v=4"></script>
+</body>
+</html>
