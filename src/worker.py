@@ -103,7 +103,7 @@ class Default(WorkerEntrypoint):
             return json_response({
                 "status": "ok",
                 "service": "solestock",
-                "build": 9,
+                "build": 10,
             })
 
         # GET /api/session
@@ -172,6 +172,9 @@ class Default(WorkerEntrypoint):
                     status=401,
                 )
 
+        if ("/api/product/" in path or "/api/products/" in path) and not logged_in_user:
+            return json_response({"error": "Authentication required"}, status=401)
+
         if "/api/brands/" in path and not logged_in_user:
             return json_response(
                 {"error": "Authentication required"},
@@ -186,7 +189,7 @@ class Default(WorkerEntrypoint):
                     SELECT
                         b.id,
                         b.name,
-                        COUNT(p.id) AS product_count,
+                        COUNT(DISTINCT p.id) AS product_count,
                         COALESCE(SUM(s.quantity), 0) AS total_pairs
                     FROM brand AS b
                     LEFT JOIN product AS p
@@ -198,7 +201,7 @@ class Default(WorkerEntrypoint):
                     """
                 ).all()
                 return json_response({
-                    "build": 9,
+                    "build": 10,
                     "brands": [
                         {
                             "id": row_int(row, "id"),
@@ -318,7 +321,7 @@ class Default(WorkerEntrypoint):
                 "products": row_int(products, "count"),
                 "sizes": row_int(sizes, "count"),
                 "brands": row_int(brands, "count"),
-                "build": 9,
+                "build": 10,
             })
 
         # GET /api/summary
@@ -483,8 +486,170 @@ class Default(WorkerEntrypoint):
                 "brands": brands,
                 "recent_products": recent_products,
                 "alerts": list(alerts_by_product.values()),
-                "build": 9,
+                "build": 10,
             })
+
+        # GET/PUT /api/product/{id}
+        product_match = re.search(r"/api/product/(\d+)$", path)
+        if product_match:
+            product_id = int(product_match.group(1))
+            found = await self.env.DB.prepare(
+                """
+                SELECT id, brand, article_name, product_name, note, category,
+                       image_url, image_public_id, minimum_threshold, updated_at
+                FROM product WHERE id = ?1
+                """
+            ).bind(product_id).first()
+            if not found:
+                return json_response({"error": "Product not found"}, 404)
+
+            if method == "GET":
+                size_rows = await self.env.DB.prepare(
+                    """
+                    SELECT id, size, quantity, minimum_threshold
+                    FROM size_stock WHERE product_id = ?1
+                    ORDER BY CASE WHEN size GLOB '[0-9]*'
+                        THEN CAST(size AS REAL) ELSE 999999 END, LOWER(size)
+                    """
+                ).bind(product_id).all()
+                return json_response({
+                    "build": 10,
+                    "product": {
+                        "id": product_id,
+                        "brand": row_text(found, "brand"),
+                        "article_name": row_text(found, "article_name"),
+                        "product_name": row_text(found, "product_name"),
+                        "note": getattr(found, "note", None),
+                        "category": row_text(found, "category"),
+                        "image_url": getattr(found, "image_url", None),
+                        "image_public_id": getattr(found, "image_public_id", None),
+                        "minimum_threshold": row_int(found, "minimum_threshold"),
+                        "sizes": [
+                            {
+                                "id": row_int(row, "id"),
+                                "size": row_text(row, "size"),
+                                "quantity": row_int(row, "quantity"),
+                                "minimum_threshold": row_int(row, "minimum_threshold"),
+                            }
+                            for row in size_rows.results
+                        ],
+                    },
+                })
+
+            if method == "PUT":
+                body = await read_json(request)
+                brand = str(body.get("brand", "")).strip()
+                article = str(body.get("article_name", "")).strip()
+                name = str(body.get("product_name", "")).strip()
+                category = str(body.get("category", "")).strip()
+                note = str(body.get("note", "")).strip() or None
+                try:
+                    threshold = max(0, int(body.get("minimum_threshold", 5)))
+                except (TypeError, ValueError):
+                    return json_response({"error": "Threshold must be a valid number"}, 400)
+                if not brand or not article or not name or category not in ("Shoes", "Sandals"):
+                    return json_response({"error": "Please complete all product fields correctly."}, 400)
+                valid_brand = await self.env.DB.prepare(
+                    "SELECT id FROM brand WHERE LOWER(name) = LOWER(?1) LIMIT 1"
+                ).bind(brand).first()
+                if not valid_brand:
+                    return json_response({"error": "Select a valid brand"}, 400)
+                duplicate = await self.env.DB.prepare(
+                    "SELECT id FROM product WHERE LOWER(brand)=LOWER(?1) AND LOWER(article_name)=LOWER(?2) AND id != ?3 LIMIT 1"
+                ).bind(brand, article, product_id).first()
+                if duplicate:
+                    return json_response({"error": "Article number already exists for this brand."}, 409)
+                sizes = body.get("sizes", []) if isinstance(body.get("sizes", []), list) else []
+                normalized = []
+                seen = set()
+                try:
+                    for item in sizes:
+                        size = str(item.get("size", "")).strip()
+                        key = size.lower()
+                        if not size or key in seen:
+                            continue
+                        seen.add(key)
+                        normalized.append((size, max(0, int(item.get("quantity", 0))), max(0, int(item.get("minimum_threshold", 0)))))
+                except (TypeError, ValueError):
+                    return json_response({"error": "Quantity and threshold values must be valid numbers."}, 400)
+                if not normalized:
+                    return json_response({"error": "Add at least one product size."}, 400)
+                statements = [
+                    self.env.DB.prepare(
+                        """
+                        UPDATE product SET brand=?1, article_name=?2, product_name=?3,
+                            note=?4, category=?5, minimum_threshold=?6,
+                            updated_at=CURRENT_TIMESTAMP WHERE id=?7
+                        """
+                    ).bind(brand, article, name, note, category, threshold, product_id),
+                    self.env.DB.prepare("DELETE FROM size_stock WHERE product_id=?1").bind(product_id),
+                ]
+                for size, quantity, size_threshold in normalized:
+                    statements.append(self.env.DB.prepare(
+                        "INSERT INTO size_stock (product_id,size,quantity,minimum_threshold) VALUES (?1,?2,?3,?4)"
+                    ).bind(product_id, size, quantity, size_threshold))
+                await self.env.DB.batch(statements)
+                return json_response({"message": "Product saved successfully.", "product_id": product_id})
+
+            return json_response({"error": "Method not allowed"}, 405)
+
+        # POST /api/products
+        if path.endswith("/api/products") and method == "POST":
+            body = await read_json(request)
+            brand = str(body.get("brand", "")).strip()
+            article = str(body.get("article_name", "")).strip()
+            name = str(body.get("product_name", "")).strip()
+            category = str(body.get("category", "")).strip()
+            note = str(body.get("note", "")).strip() or None
+            try:
+                threshold = max(0, int(body.get("minimum_threshold", 5)))
+            except (TypeError, ValueError):
+                return json_response({"error": "Threshold must be a valid number"}, 400)
+            if not brand or not article or not name or category not in ("Shoes", "Sandals"):
+                return json_response({"error": "Please complete all product fields correctly."}, 400)
+            valid_brand = await self.env.DB.prepare(
+                "SELECT id FROM brand WHERE LOWER(name)=LOWER(?1) LIMIT 1"
+            ).bind(brand).first()
+            if not valid_brand:
+                return json_response({"error": "Select a valid brand"}, 400)
+            duplicate = await self.env.DB.prepare(
+                "SELECT id FROM product WHERE LOWER(brand)=LOWER(?1) AND LOWER(article_name)=LOWER(?2) LIMIT 1"
+            ).bind(brand, article).first()
+            if duplicate:
+                return json_response({"error": "Article number already exists for this brand."}, 409)
+            sizes = body.get("sizes", []) if isinstance(body.get("sizes", []), list) else []
+            normalized = []
+            seen = set()
+            try:
+                for item in sizes:
+                    size = str(item.get("size", "")).strip()
+                    key = size.lower()
+                    if not size or key in seen:
+                        continue
+                    seen.add(key)
+                    normalized.append((size, max(0, int(item.get("quantity", 0))), max(0, int(item.get("minimum_threshold", 0)))))
+            except (TypeError, ValueError):
+                return json_response({"error": "Quantity and threshold values must be valid numbers."}, 400)
+            if not normalized:
+                return json_response({"error": "Add at least one product size."}, 400)
+            await self.env.DB.prepare(
+                """
+                INSERT INTO product
+                    (brand,article_name,product_name,note,category,minimum_threshold,updated_at)
+                VALUES (?1,?2,?3,?4,?5,?6,CURRENT_TIMESTAMP)
+                """
+            ).bind(brand, article, name, note, category, threshold).run()
+            created = await self.env.DB.prepare(
+                "SELECT id FROM product WHERE LOWER(brand)=LOWER(?1) AND LOWER(article_name)=LOWER(?2) LIMIT 1"
+            ).bind(brand, article).first()
+            product_id = row_int(created, "id")
+            await self.env.DB.batch([
+                self.env.DB.prepare(
+                    "INSERT INTO size_stock (product_id,size,quantity,minimum_threshold) VALUES (?1,?2,?3,?4)"
+                ).bind(product_id, size, quantity, size_threshold)
+                for size, quantity, size_threshold in normalized
+            ])
+            return json_response({"message": "Product saved successfully.", "product_id": product_id}, 201)
 
         # GET /api/products
         if path.endswith("/api/products") and method == "GET":
@@ -592,7 +757,7 @@ class Default(WorkerEntrypoint):
             ]
 
             return json_response({
-                "build": 9,
+                "build": 10,
                 "brands": brands,
                 "product_count": len(products),
                 "size_row_count": sum(len(item["sizes"]) for item in products),

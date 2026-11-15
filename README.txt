@@ -1,31 +1,13 @@
-SOLESTOCK RENDER BRANDS BUILD 9
+SOLESTOCK RENDER PRODUCT BUILD 10
 
-Next migration: Brand management.
-UI is adapted only from existing Render templates/base.html, templates/brands.html and static/style.css.
-No stock increase/decrease/adjust buttons are included.
+Fix: Brand product counts now use COUNT(DISTINCT p.id), so size joins cannot multiply product counts.
+Next feature: Add/Edit Product using the Render product_form.html layout and classes.
+No stock adjustment buttons are included.
+Image upload is intentionally deferred to R2; existing Cloudinary images are preserved on edits.
 
-Features:
-- GET /api/brands
-- POST /api/brands
-- PATCH /api/brands/{id}
-- DELETE /api/brands/{id}
-- Add brand
-- Rename brand and update matching product.brand values
-- Delete only unused brands
-- Product counts and total pair counts
-- Home, Stocks and Brands navigation
-- Existing Build 8 Home dashboard and Render-matched Stocks page
+Install: copy pyproject.toml, wrangler.jsonc, src and public to repo root, replace all, then run:
+uv sync
+uv run python -m py_compile .\src\worker.py
+uv run pywrangler deploy
 
-INSTALL
-1. Use cloudflare-migration branch.
-2. Extract ZIP.
-3. Copy pyproject.toml, wrangler.jsonc, src and public into repository root.
-4. Replace all files.
-5. Run:
-   uv sync
-   uv run python -m py_compile .\src\worker.py
-   uv run pywrangler deploy
-6. Verify /health shows build 9.
-7. Log in and open /api/brands, confirm build 9.
-8. Open /brands/?build=9 and test add, rename and delete-unused.
-9. Recheck /?build=9 and /stocks/?build=9.
+Verify /health build 10, /api/brands counts, /product/ add, /product/?id=ID edit, /stocks/ display.

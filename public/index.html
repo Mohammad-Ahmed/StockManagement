@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dashboard · SoleStock</title>
-  <link rel="stylesheet" href="/style.css?v=90">
+  <link rel="stylesheet" href="/style.css?v=100">
 </head>
 <body>
 <header class="topbar">
@@ -14,7 +14,7 @@
   </nav>
   <div class="nav-actions">
     <div class="nav-user"><span class="nav-user-avatar">A</span><span class="nav-user-details"><strong id="currentUser">admin</strong><small>Administrator</small></span></div>
-    <button class="button primary desktop-add" type="button" disabled>+ Add Product</button>
+    <a class="button primary desktop-add" href="/product/">+ Add Product</a>
     <button id="logoutButton" class="logout-button" type="button" title="Logout from SoleStock"><span class="logout-icon">↪</span><span class="logout-text">Logout</span></button>
   </div>
 </header>
@@ -74,7 +74,7 @@ function renderAlerts(alerts){const list=byId('stockAlertList');list.replaceChil
 
 function renderRecent(products){const body=byId('recentBody');body.replaceChildren();if(!products.length){const row=node('tr');const cell=node('td','','No products are available.');cell.colSpan=6;row.appendChild(cell);body.appendChild(row);return}for(const product of products){const row=node('tr');const articleCell=node('td');articleCell.appendChild(node('strong','',clean(product.article_name,`Product ${num(product.id)}`)));row.appendChild(articleCell);row.appendChild(node('td','',clean(product.product_name,clean(product.article_name,'Unnamed product'))));row.appendChild(node('td','',clean(product.brand,'Unknown brand')));row.appendChild(node('td','',clean(product.category,'Uncategorized')));row.appendChild(node('td','',String(num(product.total_quantity))));const statusCell=node('td');statusCell.appendChild(node('span',`status ${clean(product.status,'out')}`,clean(product.status,'out')));row.appendChild(statusCell);body.appendChild(row)}}
 
-async function loadDashboard(){const response=await fetch('/api/home',{credentials:'same-origin',cache:'no-store',headers:{accept:'application/json'}});if(response.status===401){location.replace('/login/');return}if(!response.ok)throw Error(`Home dashboard request failed: ${response.status}`);const data=await response.json();if(num(data.build)!==9)throw Error(`Expected API build 9, received ${data.build??'unknown'}`);const totals=data.totals||{};byId('totalProducts').textContent=String(num(totals.products));byId('totalPairs').textContent=String(num(totals.pairs));byId('totalShoes').textContent=String(num(totals.shoes));byId('totalSandals').textContent=String(num(totals.sandals));byId('totalLow').textContent=String(num(totals.low));byId('totalOut').textContent=String(num(totals.out));renderBrands(Array.isArray(data.brands)?data.brands:[]);renderAlerts(Array.isArray(data.alerts)?data.alerts:[]);renderRecent(Array.isArray(data.recent_products)?data.recent_products:[]);byId('loadingState').hidden=true;byId('errorState').hidden=true;byId('dashboardContent').hidden=false}
+async function loadDashboard(){const response=await fetch('/api/home',{credentials:'same-origin',cache:'no-store',headers:{accept:'application/json'}});if(response.status===401){location.replace('/login/');return}if(!response.ok)throw Error(`Home dashboard request failed: ${response.status}`);const data=await response.json();if(num(data.build)!==10)throw Error(`Expected API build 10, received ${data.build??'unknown'}`);const totals=data.totals||{};byId('totalProducts').textContent=String(num(totals.products));byId('totalPairs').textContent=String(num(totals.pairs));byId('totalShoes').textContent=String(num(totals.shoes));byId('totalSandals').textContent=String(num(totals.sandals));byId('totalLow').textContent=String(num(totals.low));byId('totalOut').textContent=String(num(totals.out));renderBrands(Array.isArray(data.brands)?data.brands:[]);renderAlerts(Array.isArray(data.alerts)?data.alerts:[]);renderRecent(Array.isArray(data.recent_products)?data.recent_products:[]);byId('loadingState').hidden=true;byId('errorState').hidden=true;byId('dashboardContent').hidden=false}
 
 byId('logoutButton').addEventListener('click',async()=>{await fetch('/api/logout',{method:'POST',credentials:'same-origin'});location.replace('/login/')});
 (async()=>{try{await requireSession();await loadDashboard()}catch(error){console.error(error);byId('loadingState').hidden=true;byId('dashboardContent').hidden=true;byId('errorState').hidden=false;byId('errorState').textContent=`Unable to load dashboard: ${error.message}`}})();
