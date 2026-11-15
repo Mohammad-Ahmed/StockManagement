@@ -1,35 +1,20 @@
-SOLESTOCK RENDER DELETE + CSV BUILD 11
+SOLESTOCK R2 MIGRATION FIX - BUILD 13
 
-Next migration step:
-- Delete Product
-- CSV stock export
+Replace only:
+scripts/migrate_cloudinary_to_r2.py
 
-UI continues to use the previous Render stocks.html/base.html/style.css structure.
-No plus, minus, adjust, or stock-update buttons are included.
+The rest of Build 12 stays unchanged.
 
-Delete behavior:
-- authenticated DELETE /api/product/{id}
-- removes stock_movement, size_stock and product rows
-- browser confirmation before deletion
-- existing Cloudinary asset cleanup is deferred until R2 migration
+Fixes:
+- retains the HttpOnly session cookie using CookieJar
+- sends a normal User-Agent
+- verifies /health before asking for credentials
+- verifies /api/session immediately after login
+- displays the actual server error body for HTTP errors
+- asks for confirmation before writing
+- skips images already on R2
+- rolls back a new R2 object if the D1 update fails
+- writes scripts/r2_migration_log.csv after every product
 
-CSV behavior:
-- authenticated GET /api/export/csv
-- same Render report columns:
-  Brand, Article Name, Product Name, Category, Available Sizes,
-  Size-wise Quantities, Total Quantity, Stock Status, Updated At
-- UTF-8 BOM for Excel compatibility
-
-INSTALL
-1. Use cloudflare-migration branch.
-2. Extract ZIP.
-3. Copy pyproject.toml, wrangler.jsonc, src and public into repository root.
-4. Replace all files.
-5. Run:
-   uv sync
-   uv run python -m py_compile .\src\worker.py
-   uv run pywrangler deploy
-6. Verify /health shows build 11.
-7. Recheck Home, Stocks, Brands, Add and Edit.
-8. Test deletion only with a temporary product.
-9. Download CSV and compare totals with the Stocks page.
+Run:
+python .\scripts\migrate_cloudinary_to_r2.py

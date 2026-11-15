@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Stocks · SoleStock</title>
-  <link rel="stylesheet" href="/style.css?v=110">
+  <link rel="stylesheet" href="/style.css?v=120">
 </head>
 <body>
 <header class="topbar">
@@ -128,7 +128,7 @@ function getFilteredProducts(){
 
 function renderProducts(){const products=getFilteredProducts();ui.count.textContent=`${products.length} ${products.length===1?'matching article':'matching articles'}`;ui.grid.replaceChildren();if(products.length){for(const product of products)ui.grid.appendChild(createProductCard(product))}else{const empty=node('div','empty-state');empty.appendChild(node('h2','','No products found'));empty.appendChild(node('p','','Change the filters or add a new product.'));ui.grid.appendChild(empty)}}
 
-async function loadProducts(){const response=await fetch('/api/products',{credentials:'same-origin',cache:'no-store',headers:{accept:'application/json'}});if(response.status===401){location.replace('/login/');return}if(!response.ok)throw Error(`Products request failed: ${response.status}`);const data=await response.json();if(num(data.build)!==11)throw Error(`Expected API build 11, received ${data.build??'unknown'}`);state.products=Array.isArray(data.products)?data.products:[];state.brands=Array.isArray(data.brands)?data.brands:[];setupFilters();renderProducts();ui.loading.hidden=true;ui.error.hidden=true;ui.grid.hidden=false}
+async function loadProducts(){const response=await fetch('/api/products',{credentials:'same-origin',cache:'no-store',headers:{accept:'application/json'}});if(response.status===401){location.replace('/login/');return}if(!response.ok)throw Error(`Products request failed: ${response.status}`);const data=await response.json();if(num(data.build)!==12)throw Error(`Expected API build 12, received ${data.build??'unknown'}`);state.products=Array.isArray(data.products)?data.products:[];state.brands=Array.isArray(data.brands)?data.brands:[];setupFilters();renderProducts();ui.loading.hidden=true;ui.error.hidden=true;ui.grid.hidden=false}
 
 ui.form.addEventListener('submit',event=>{event.preventDefault();renderProducts()});ui.clear.addEventListener('click',()=>{ui.search.value='';ui.brand.value='';ui.category.value='';ui.size.value='';ui.status.value='';ui.tabs.querySelectorAll('[data-brand]').forEach(button=>button.classList.toggle('selected',button.dataset.brand===''));renderProducts()});ui.tabs.addEventListener('click',event=>{const button=event.target.closest('[data-brand]');if(!button)return;ui.brand.value=button.dataset.brand||'';ui.tabs.querySelectorAll('[data-brand]').forEach(item=>item.classList.remove('selected'));button.classList.add('selected');renderProducts()});ui.logout.addEventListener('click',async()=>{await fetch('/api/logout',{method:'POST',credentials:'same-origin'});location.replace('/login/')});ui.downloadButton.addEventListener('click',event=>{event.stopPropagation();ui.downloadMenu.classList.toggle('show')});document.addEventListener('click',event=>{if(!event.target.closest('.dropdown'))ui.downloadMenu.classList.remove('show')});window.addEventListener('scroll',()=>ui.top.classList.toggle('show',scrollY>300),{passive:true});ui.top.addEventListener('click',()=>scrollTo({top:0,behavior:'smooth'}));
 (async()=>{try{await requireSession();await loadProducts()}catch(error){console.error(error);ui.loading.hidden=true;ui.grid.hidden=true;ui.error.hidden=false;ui.error.textContent=`Unable to load inventory: ${error.message}`}})();

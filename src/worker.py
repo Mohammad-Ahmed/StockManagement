@@ -5,6 +5,7 @@ import hmac
 import json
 import re
 import time
+from urllib.parse import parse_qs, unquote, urlparse
 from datetime import datetime
 
 from workers import Response, WorkerEntrypoint
@@ -89,7 +90,9 @@ def row_int(row, field_name, fallback=0):
 
 class Default(WorkerEntrypoint):
     async def fetch(self, request):
-        path = request.url.split("?", 1)[0]
+        parsed_url = urlparse(request.url)
+        path = parsed_url.path
+        query = parse_qs(parsed_url.query)
         method = request.method.upper()
 
         session_secret = str(self.env.SESSION_SECRET)
@@ -106,8 +109,35 @@ class Default(WorkerEntrypoint):
             return json_response({
                 "status": "ok",
                 "service": "solestock",
-                "build": 11,
+                "build": 12,
             })
+
+        # GET /images/{key} - public image delivery through Worker
+        if path.startswith("/images/") and method == "GET":
+            key = unquote(path[len("/images/"):]).lstrip("/")
+            if not key or ".." in key:
+                return Response("Image not found", status=404)
+            image_object = await self.env.IMAGES.get(key)
+            if image_object is None:
+                return Response("Image not found", status=404)
+            extension = key.rsplit(".", 1)[-1].lower() if "." in key else ""
+            content_types = {
+                "png": "image/png",
+                "jpg": "image/jpeg",
+                "jpeg": "image/jpeg",
+                "webp": "image/webp",
+            }
+            return Response(
+                image_object.body,
+                headers={
+                    "content-type": content_types.get(
+                        extension,
+                        "application/octet-stream",
+                    ),
+                    "cache-control": "public, max-age=31536000, immutable",
+                    "etag": getattr(image_object, "etag", ""),
+                },
+            )
 
         # GET /api/session
         if path.endswith("/api/session") and method == "GET":
@@ -165,6 +195,7 @@ class Default(WorkerEntrypoint):
             "/api/home",
             "/api/brands",
             "/api/export/csv",
+            "/api/images/upload",
             "/api/summary",
             "/api/products",
             "/api/debug",
@@ -176,7 +207,11 @@ class Default(WorkerEntrypoint):
                     status=401,
                 )
 
-        if ("/api/product/" in path or "/api/products/" in path) and not logged_in_user:
+        if (
+            "/api/product/" in path
+            or "/api/products/" in path
+            or "/api/images/" in path
+        ) and not logged_in_user:
             return json_response({"error": "Authentication required"}, status=401)
 
         if "/api/brands/" in path and not logged_in_user:
@@ -205,7 +240,7 @@ class Default(WorkerEntrypoint):
                     """
                 ).all()
                 return json_response({
-                    "build": 11,
+                    "build": 12,
                     "brands": [
                         {
                             "id": row_int(row, "id"),
@@ -309,6 +344,59 @@ class Default(WorkerEntrypoint):
 
             return json_response({"error": "Method not allowed"}, 405)
 
+        # PUT /api/images/upload?filename=name.jpg
+        if path.endswith("/api/images/upload") and method == "PUT":
+            filename = str(query.get("filename", [""])[0]).strip()
+            content_type = str(
+                request.headers.get("content-type") or ""
+            ).lower()
+            allowed_types = {
+                "image/png": "png",
+                "image/jpeg": "jpg",
+                "image/webp": "webp",
+            }
+            extension = allowed_types.get(content_type)
+            if extension is None:
+                return json_response({
+                    "error": "Use a PNG, JPG, JPEG, or WEBP image."
+                }, 400)
+            content_length = request.headers.get("content-length")
+            if content_length:
+                try:
+                    if int(content_length) > 5 * 1024 * 1024:
+                        return json_response({
+                            "error": "Image must be 5 MB or smaller."
+                        }, 413)
+                except ValueError:
+                    pass
+            safe_name = re.sub(
+                r"[^A-Za-z0-9._-]+",
+                "-",
+                filename or f"product.{extension}",
+            ).strip("-.")
+            stem = safe_name.rsplit(".", 1)[0][:70] or "product"
+            unique = hashlib.sha256(
+                f"{logged_in_user}|{time.time_ns()}|{safe_name}".encode("utf-8")
+            ).hexdigest()[:16]
+            key = f"products/{int(time.time())}-{unique}-{stem}.{extension}"
+            uploaded = await self.env.IMAGES.put(key, request.body)
+            if uploaded is None:
+                return json_response({"error": "Image upload failed."}, 500)
+            return json_response({
+                "message": "Image uploaded successfully.",
+                "key": key,
+                "url": f"/images/{key}",
+                "content_type": content_type,
+            }, 201)
+
+        image_delete_match = re.search(r"/api/images/(.+)$", path)
+        if image_delete_match and method == "DELETE":
+            key = unquote(image_delete_match.group(1)).lstrip("/")
+            if not key.startswith("products/") or ".." in key:
+                return json_response({"error": "Invalid image key"}, 400)
+            await self.env.IMAGES.delete(key)
+            return json_response({"message": "Image deleted successfully."})
+
         # GET /api/debug
         if path.endswith("/api/debug") and method == "GET":
             products = await self.env.DB.prepare(
@@ -325,7 +413,7 @@ class Default(WorkerEntrypoint):
                 "products": row_int(products, "count"),
                 "sizes": row_int(sizes, "count"),
                 "brands": row_int(brands, "count"),
-                "build": 11,
+                "build": 12,
             })
 
         # GET /api/summary
@@ -490,7 +578,7 @@ class Default(WorkerEntrypoint):
                 "brands": brands,
                 "recent_products": recent_products,
                 "alerts": list(alerts_by_product.values()),
-                "build": 11,
+                "build": 12,
             })
 
         # GET/PUT /api/product/{id}
@@ -517,7 +605,7 @@ class Default(WorkerEntrypoint):
                     """
                 ).bind(product_id).all()
                 return json_response({
-                    "build": 11,
+                    "build": 12,
                     "product": {
                         "id": product_id,
                         "brand": row_text(found, "brand"),
@@ -547,6 +635,13 @@ class Default(WorkerEntrypoint):
                 name = str(body.get("product_name", "")).strip()
                 category = str(body.get("category", "")).strip()
                 note = str(body.get("note", "")).strip() or None
+                submitted_image_url = str(
+                    body.get("image_url", "")
+                ).strip() or getattr(found, "image_url", None)
+                submitted_image_key = str(
+                    body.get("image_public_id", "")
+                ).strip() or getattr(found, "image_public_id", None)
+                old_image_key = getattr(found, "image_public_id", None)
                 try:
                     threshold = max(0, int(body.get("minimum_threshold", 5)))
                 except (TypeError, ValueError):
@@ -583,9 +678,13 @@ class Default(WorkerEntrypoint):
                         """
                         UPDATE product SET brand=?1, article_name=?2, product_name=?3,
                             note=?4, category=?5, minimum_threshold=?6,
-                            updated_at=CURRENT_TIMESTAMP WHERE id=?7
+                            image_url=?7, image_public_id=?8,
+                            updated_at=CURRENT_TIMESTAMP WHERE id=?9
                         """
-                    ).bind(brand, article, name, note, category, threshold, product_id),
+                    ).bind(
+                        brand, article, name, note, category, threshold,
+                        submitted_image_url, submitted_image_key, product_id,
+                    ),
                     self.env.DB.prepare("DELETE FROM size_stock WHERE product_id=?1").bind(product_id),
                 ]
                 for size, quantity, size_threshold in normalized:
@@ -593,7 +692,18 @@ class Default(WorkerEntrypoint):
                         "INSERT INTO size_stock (product_id,size,quantity,minimum_threshold) VALUES (?1,?2,?3,?4)"
                     ).bind(product_id, size, quantity, size_threshold))
                 await self.env.DB.batch(statements)
-                return json_response({"message": "Product saved successfully.", "product_id": product_id})
+                if (
+                    old_image_key
+                    and old_image_key != submitted_image_key
+                    and str(old_image_key).startswith("products/")
+                ):
+                    await self.env.IMAGES.delete(str(old_image_key))
+                return json_response({
+                    "message": "Product saved successfully.",
+                    "product_id": product_id,
+                    "image_url": submitted_image_url,
+                    "image_public_id": submitted_image_key,
+                })
 
             if method == "DELETE":
                 image_public_id = getattr(found, "image_public_id", None)
@@ -609,6 +719,8 @@ class Default(WorkerEntrypoint):
                         "DELETE FROM product WHERE id = ?1"
                     ).bind(product_id),
                 ])
+                if image_public_id and str(image_public_id).startswith("products/"):
+                    await self.env.IMAGES.delete(str(image_public_id))
                 return json_response({
                     "message": "Product deleted successfully.",
                     "deleted_product": {
@@ -618,7 +730,10 @@ class Default(WorkerEntrypoint):
                         "image_public_id": image_public_id,
                         "image_url": image_url,
                     },
-                    "image_cleanup_deferred": bool(image_public_id or image_url),
+                    "image_cleanup_deferred": bool(
+                        (image_public_id or image_url)
+                        and not str(image_public_id or "").startswith("products/")
+                    ),
                 })
 
             return json_response({"error": "Method not allowed"}, 405)
@@ -728,6 +843,10 @@ class Default(WorkerEntrypoint):
             name = str(body.get("product_name", "")).strip()
             category = str(body.get("category", "")).strip()
             note = str(body.get("note", "")).strip() or None
+            image_url = str(body.get("image_url", "")).strip() or None
+            image_public_id = str(
+                body.get("image_public_id", "")
+            ).strip() or None
             try:
                 threshold = max(0, int(body.get("minimum_threshold", 5)))
             except (TypeError, ValueError):
@@ -762,10 +881,17 @@ class Default(WorkerEntrypoint):
             await self.env.DB.prepare(
                 """
                 INSERT INTO product
-                    (brand,article_name,product_name,note,category,minimum_threshold,updated_at)
-                VALUES (?1,?2,?3,?4,?5,?6,CURRENT_TIMESTAMP)
+                    (
+                        brand, article_name, product_name, note, category,
+                        minimum_threshold, image_url, image_public_id,
+                        updated_at
+                    )
+                VALUES (?1,?2,?3,?4,?5,?6,?7,?8,CURRENT_TIMESTAMP)
                 """
-            ).bind(brand, article, name, note, category, threshold).run()
+            ).bind(
+                brand, article, name, note, category, threshold,
+                image_url, image_public_id,
+            ).run()
             created = await self.env.DB.prepare(
                 "SELECT id FROM product WHERE LOWER(brand)=LOWER(?1) AND LOWER(article_name)=LOWER(?2) LIMIT 1"
             ).bind(brand, article).first()
@@ -884,7 +1010,7 @@ class Default(WorkerEntrypoint):
             ]
 
             return json_response({
-                "build": 11,
+                "build": 12,
                 "brands": brands,
                 "product_count": len(products),
                 "size_row_count": sum(len(item["sizes"]) for item in products),

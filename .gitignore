@@ -27,3 +27,4 @@ static/uploads/*
 .vscode/
 
 Commands.txt
+scripts/r2_migration_log.csv

@@ -1,0 +1,20 @@
+BEFORE DEPLOYING BUILD 12
+
+1. Create the R2 bucket once:
+   npx wrangler r2 bucket create solestock-images
+
+2. Confirm it exists:
+   npx wrangler r2 bucket list
+
+3. Deploy:
+   uv sync
+   uv run python -m py_compile .\src\worker.py
+   uv run pywrangler deploy
+
+4. Test add/edit image on a temporary product first.
+
+5. Migrate existing Cloudinary images only after upload and image serving work:
+   python .\scripts\migrate_cloudinary_to_r2.py
+
+The migration script logs in interactively and never stores the password.
+Do not delete Cloudinary assets immediately. Keep Cloudinary for 7-14 days after verification.
