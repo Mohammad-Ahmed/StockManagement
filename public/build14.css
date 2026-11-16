@@ -12,3 +12,8 @@
 .image-placeholder{position:absolute;inset:12px;display:grid;place-items:center;padding:20px;color:var(--muted);text-align:center;background:var(--paper);z-index:1}
 .image-placeholder.hidden{display:none!important}
 @media(max-width:680px){.current-image-box{width:100%}.stock-alert-filters{grid-template-columns:1fr 1fr}.stock-alert-filters label:first-child{grid-column:1/-1}.stock-alert-filters .button{width:100%}}
+
+.stock-alert-open::after {
+    content: "\2192";
+    margin-left: 4px;
+}
