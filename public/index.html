@@ -1,82 +1,21 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Dashboard · SoleStock</title>
-  <link rel="stylesheet" href="/style.css?v=120">
-</head>
-<body>
-<header class="topbar">
-  <a class="brand" href="/"><span class="brand-mark">S</span><span>SoleStock</span></a>
-  <nav aria-label="Main navigation">
-    <a class="active" href="/">Home</a><a href="/stocks/">Stocks</a><a href="/brands/">Brands</a>
-  </nav>
-  <div class="nav-actions">
-    <div class="nav-user"><span class="nav-user-avatar">A</span><span class="nav-user-details"><strong id="currentUser">admin</strong><small>Administrator</small></span></div>
-    <a class="button primary desktop-add" href="/product/">+ Add Product</a>
-    <button id="logoutButton" class="logout-button" type="button" title="Logout from SoleStock"><span class="logout-icon">↪</span><span class="logout-text">Logout</span></button>
-  </div>
-</header>
-
-<main class="container">
-  <div id="loadingState" class="empty-state"><h2>Loading dashboard</h2><p>Loading inventory information from Cloudflare D1...</p></div>
-  <div id="errorState" class="flash error" hidden></div>
-  <div id="dashboardContent" hidden>
-    <section class="hero">
-      <div><p class="eyebrow">INVENTORY OVERVIEW</p><h1>Stock at a glance</h1><p>Monitor every article, size, and pair from one clean dashboard.</p></div>
-      <a class="button primary" href="/stocks/">Manage stock</a>
-    </section>
-
-    <section class="summary-grid">
-      <article class="summary"><span>Total products</span><strong id="totalProducts">0</strong></article>
-      <article class="summary"><span>Total pairs</span><strong id="totalPairs">0</strong></article>
-      <article class="summary"><span>Shoes available</span><strong id="totalShoes">0</strong></article>
-      <article class="summary"><span>Sandals available</span><strong id="totalSandals">0</strong></article>
-      <article class="summary warning"><span>Low stock</span><strong id="totalLow">0</strong></article>
-      <article class="summary danger"><span>Out of stock</span><strong id="totalOut">0</strong></article>
-    </section>
-
-    <div class="dashboard-grid">
-      <section class="panel">
-        <div class="panel-head"><h2>Brand-wise stock</h2><a href="/stocks/">View all</a></div>
-        <div id="brandSummary"></div>
-      </section>
-
-      <section class="panel stock-alert-panel">
-        <div class="stock-alert-header">
-          <div><p class="stock-alert-eyebrow">INVENTORY ATTENTION</p><h2>Stock alerts</h2><p class="stock-alert-description">Articles with one or more unavailable sizes</p></div>
-          <div class="stock-alert-count"><strong id="alertCount">0</strong><span id="alertCountLabel">Articles</span></div>
-        </div>
-        <div id="stockAlertList" class="stock-alert-list"></div>
-      </section>
-    </div>
-
-    <section class="panel recent">
-      <div class="panel-head"><h2>Recently updated</h2></div>
-      <div class="table-wrap"><table><thead><tr><th>Article</th><th>Product</th><th>Brand</th><th>Category</th><th>Total</th><th>Status</th></tr></thead><tbody id="recentBody"></tbody></table></div>
-    </section>
-  </div>
-</main>
-<footer>Inventory management only · SoleStock</footer>
-
+﻿<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Dashboard Â· SoleStock</title><link rel="stylesheet" href="/style.css?v=15"><link rel="stylesheet" href="/build14.css?v=15"></head><body>
+<header class="topbar"><a class="brand" href="/"><span class="brand-mark">S</span><span>SoleStock</span></a><nav><a class="active" href="/">Home</a><a href="/stocks/">Stocks</a><a href="/brands/">Brands</a></nav><div class="nav-actions"><div class="nav-user"><span class="nav-user-avatar">A</span><span class="nav-user-details"><strong id="currentUser">admin</strong><small>Administrator</small></span></div><a class="button primary desktop-add" href="/product/">+ Add Product</a><button id="logoutButton" class="logout-button"><span>â†ª</span><span>Logout</span></button></div></header>
+<main class="container"><div id="loadingState" class="empty-state"><h2>Loading dashboard</h2><p>Loading inventory information from Cloudflare D1...</p></div><div id="errorState" class="flash error" hidden></div><div id="dashboardContent" hidden>
+<section class="hero"><div><p class="eyebrow">INVENTORY OVERVIEW</p><h1>Stock at a glance</h1><p>Monitor every article, size, and pair from one clean dashboard.</p></div><a class="button primary" href="/stocks/">Manage stock</a></section>
+<section class="summary-grid"><article class="summary"><span>Total products</span><strong id="totalProducts">0</strong></article><article class="summary"><span>Total pairs</span><strong id="totalPairs">0</strong></article><article class="summary"><span>Shoes available</span><strong id="totalShoes">0</strong></article><article class="summary"><span>Sandals available</span><strong id="totalSandals">0</strong></article><article class="summary warning"><span>Low stock</span><strong id="totalLow">0</strong></article><article class="summary danger"><span>Out of stock</span><strong id="totalOut">0</strong></article></section>
+<div class="dashboard-grid"><section class="panel"><div class="panel-head"><h2>Brand-wise stock</h2><a href="/stocks/">View all</a></div><div id="brandSummary"></div></section>
+<section class="panel stock-alert-panel"><div class="stock-alert-header"><div><p class="stock-alert-eyebrow">INVENTORY ATTENTION</p><h2>Stock alerts</h2><p class="stock-alert-description">Articles with one or more unavailable sizes</p></div><div class="stock-alert-count"><strong id="alertCount">0</strong><span id="alertCountLabel">Articles</span></div></div>
+<form id="stockAlertFilters" class="stock-alert-filters"><label>Brand<select id="stockAlertBrandFilter"><option value="">All brands</option></select></label><label>Category<select id="stockAlertCategoryFilter"><option value="">All categories</option><option value="Shoes">Shoes</option><option value="Sandals">Sandals</option></select></label><button class="button" type="submit">Apply</button><button id="clearStockAlertFilters" class="button ghost" type="button">Clear</button></form><div id="stockAlertList" class="stock-alert-list"></div></section></div>
+<section class="panel recent"><div class="panel-head"><h2>Recently updated</h2></div><div class="table-wrap"><table><thead><tr><th>Article</th><th>Product</th><th>Brand</th><th>Category</th><th>Total</th><th>Status</th></tr></thead><tbody id="recentBody"></tbody></table></div></section></div></main><footer>Inventory management only Â· SoleStock</footer>
 <script>
-const byId=id=>document.getElementById(id);
-const clean=(value,fallback='')=>{const result=String(value??'').trim();return result||fallback};
-const num=(value,fallback=0)=>{const result=Number(value);return Number.isFinite(result)?result:fallback};
-const node=(tag,className,text)=>{const element=document.createElement(tag);if(className)element.className=className;if(text!==undefined)element.textContent=text;return element};
+const $=id=>document.getElementById(id),state={alerts:[]};const clean=(v,f='')=>{const x=String(v??'').trim();return x||f};const num=(v,f=0)=>Number.isFinite(Number(v))?Number(v):f;const n=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e};
+async function api(path){const r=await fetch(path,{credentials:'same-origin',cache:'no-store'});if(r.status===401){location.replace('/login/');throw Error('Authentication required')}const d=await r.json();if(!r.ok)throw Error(d.error||`Request failed: ${r.status}`);return d}
+function brands(items){const b=$('brandSummary');b.replaceChildren();if(!items.length){b.appendChild(n('p','empty','No brand stock is available.'));return}for(const x of items){const a=n('a','brand-row');a.href=`/stocks/?brand=${encodeURIComponent(clean(x.brand))}`;const i=n('span');i.append(n('span','',clean(x.brand,'Unknown brand')),n('small','',`${num(x.product_count)} ${num(x.product_count)===1?'article':'articles'}`));a.append(i,n('strong','',`${num(x.total_pairs)} pairs`));b.appendChild(a)}}
+function setupAlertFilters(items){const s=$('stockAlertBrandFilter');s.replaceChildren(new Option('All brands',''));const brands=[...new Set(items.map(item=>clean(item.brand)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));for(const brand of brands)s.add(new Option(brand,brand))}
+function selectedAlerts(){const brand=$('stockAlertBrandFilter').value.toLowerCase(),category=$('stockAlertCategoryFilter').value.toLowerCase();return state.alerts.filter(item=>(!brand||clean(item.brand).toLowerCase()===brand)&&(!category||clean(item.category).toLowerCase()===category))}
+function alerts(items){const l=$('stockAlertList');l.replaceChildren();$('alertCount').textContent=items.length;$('alertCountLabel').textContent=items.length===1?'Article':'Articles';if(!items.length){const e=n('div','stock-alert-empty');e.append(n('span','stock-alert-empty-icon','âœ“'));const t=n('div');t.append(n('strong','','All sizes are currently available'),n('p','','No matching product size has zero stock.'));e.append(t);l.append(e);return}for(const x of items){const card=n('div','stock-alert-card'),top=n('div','stock-alert-card-top'),identity=n('div','stock-alert-identity');identity.append(n('span','stock-alert-icon','!'));const info=n('div','stock-alert-information'),row=n('div','stock-alert-article-row');row.append(n('strong','stock-alert-article',clean(x.article_name,`Product ${num(x.id)}`)),n('span','stock-alert-category',clean(x.category,'Uncategorized')));info.append(row,n('span','stock-alert-brand',clean(x.brand,'Unknown brand')),n('small','stock-alert-product-name',clean(x.product_name,clean(x.article_name,'Unnamed product'))));identity.append(info);top.append(identity);const edit=n('a','stock-alert-open','Edit article â†’');edit.href=`/product/?id=${num(x.id)}`;top.append(edit);card.append(top);const area=n('div','stock-alert-size-area'),head=n('div','stock-alert-size-heading');head.append(n('span','','Out-of-stock sizes'),n('strong','',`${x.zero_sizes.length} ${x.zero_sizes.length===1?'size':'sizes'}`));area.append(head);const badges=n('div','stock-alert-size-list');for(const size of x.zero_sizes){const badge=n('span','stock-alert-size-badge');badge.append(n('span','stock-alert-size-number',clean(size,'-')),n('span','stock-alert-size-quantity','0 pairs'));badges.append(badge)}area.append(badges);card.append(area);l.append(card)}}
+function recent(items){const b=$('recentBody');b.replaceChildren();for(const x of items){const r=n('tr');r.append(n('td','',clean(x.article_name,`Product ${num(x.id)}`)),n('td','',clean(x.product_name,clean(x.article_name,'Unnamed product'))),n('td','',clean(x.brand,'Unknown brand')),n('td','',clean(x.category,'Uncategorized')),n('td','',String(num(x.total_quantity))));const c=n('td');c.append(n('span',`status ${clean(x.status,'out')}`,clean(x.status,'out')));r.append(c);b.append(r)}}
+async function load(){const session=await api('/api/session');$('currentUser').textContent=session.user_id||'admin';const d=await api('/api/home'),t=d.totals||{};$('totalProducts').textContent=num(t.products);$('totalPairs').textContent=num(t.pairs);$('totalShoes').textContent=num(t.shoes);$('totalSandals').textContent=num(t.sandals);$('totalLow').textContent=num(t.low);$('totalOut').textContent=num(t.out);brands(d.brands||[]);state.alerts=d.alerts||[];setupAlertFilters(state.alerts);alerts(selectedAlerts());recent(d.recent_products||[]);$('loadingState').hidden=true;$('dashboardContent').hidden=false}
+$('stockAlertFilters').addEventListener('submit',e=>{e.preventDefault();alerts(selectedAlerts())});$('clearStockAlertFilters').addEventListener('click',()=>{$('stockAlertBrandFilter').value='';$('stockAlertCategoryFilter').value='';alerts(selectedAlerts())});$('logoutButton').addEventListener('click',async()=>{await fetch('/api/logout',{method:'POST',credentials:'same-origin'});location.replace('/login/')});load().catch(e=>{$('loadingState').hidden=true;$('errorState').hidden=false;$('errorState').textContent=e.message});
+</script></body></html>
 
-async function requireSession(){const response=await fetch('/api/session',{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error(`Session failed: ${response.status}`);const data=await response.json();if(!data.authenticated){location.replace('/login/');throw Error('Authentication required')}byId('currentUser').textContent=data.user_id||'admin'}
-
-function renderBrands(brands){const box=byId('brandSummary');box.replaceChildren();if(!brands.length){box.appendChild(node('p','empty','No brand stock is available.'));return}for(const item of brands){const link=node('a','brand-row');link.href=`/stocks/?brand=${encodeURIComponent(clean(item.brand))}`;const info=node('span');info.appendChild(document.createTextNode(clean(item.brand,'Unknown brand')));info.appendChild(node('small','',`${num(item.product_count)} ${num(item.product_count)===1?'article':'articles'}`));link.appendChild(info);link.appendChild(node('strong','',`${num(item.total_pairs)} pairs`));box.appendChild(link)}}
-
-function renderAlerts(alerts){const list=byId('stockAlertList');list.replaceChildren();byId('alertCount').textContent=String(alerts.length);byId('alertCountLabel').textContent=alerts.length===1?'Article':'Articles';if(!alerts.length){const empty=node('div','stock-alert-empty');empty.appendChild(node('span','stock-alert-empty-icon','✓'));const text=node('div');text.appendChild(node('strong','','All sizes are currently available'));text.appendChild(node('p','','No recorded product size has zero stock.'));empty.appendChild(text);list.appendChild(empty);return}for(const alert of alerts){const card=node('div','stock-alert-card');const top=node('div','stock-alert-card-top');const identity=node('div','stock-alert-identity');identity.appendChild(node('span','stock-alert-icon','!'));const information=node('div','stock-alert-information');const articleRow=node('div','stock-alert-article-row');articleRow.appendChild(node('strong','stock-alert-article',clean(alert.article_name,`Product ${num(alert.id)}`)));articleRow.appendChild(node('span','stock-alert-category',clean(alert.category,'Uncategorized')));information.appendChild(articleRow);information.appendChild(node('span','stock-alert-brand',clean(alert.brand,'Unknown brand')));information.appendChild(node('small','stock-alert-product-name',clean(alert.product_name,clean(alert.article_name,'Unnamed product'))));identity.appendChild(information);top.appendChild(identity);top.appendChild(node('span','stock-alert-open','Edit article →'));card.appendChild(top);const area=node('div','stock-alert-size-area');const heading=node('div','stock-alert-size-heading');heading.appendChild(node('span','','Out-of-stock sizes'));heading.appendChild(node('strong','',`${alert.zero_sizes.length} ${alert.zero_sizes.length===1?'size':'sizes'}`));area.appendChild(heading);const badges=node('div','stock-alert-size-list');for(const size of alert.zero_sizes){const badge=node('span','stock-alert-size-badge');badge.appendChild(node('span','stock-alert-size-number',clean(size,'-')));badge.appendChild(node('span','stock-alert-size-quantity','0 pairs'));badges.appendChild(badge)}area.appendChild(badges);card.appendChild(area);list.appendChild(card)}}
-
-function renderRecent(products){const body=byId('recentBody');body.replaceChildren();if(!products.length){const row=node('tr');const cell=node('td','','No products are available.');cell.colSpan=6;row.appendChild(cell);body.appendChild(row);return}for(const product of products){const row=node('tr');const articleCell=node('td');articleCell.appendChild(node('strong','',clean(product.article_name,`Product ${num(product.id)}`)));row.appendChild(articleCell);row.appendChild(node('td','',clean(product.product_name,clean(product.article_name,'Unnamed product'))));row.appendChild(node('td','',clean(product.brand,'Unknown brand')));row.appendChild(node('td','',clean(product.category,'Uncategorized')));row.appendChild(node('td','',String(num(product.total_quantity))));const statusCell=node('td');statusCell.appendChild(node('span',`status ${clean(product.status,'out')}`,clean(product.status,'out')));row.appendChild(statusCell);body.appendChild(row)}}
-
-async function loadDashboard(){const response=await fetch('/api/home',{credentials:'same-origin',cache:'no-store',headers:{accept:'application/json'}});if(response.status===401){location.replace('/login/');return}if(!response.ok)throw Error(`Home dashboard request failed: ${response.status}`);const data=await response.json();if(num(data.build)!==12)throw Error(`Expected API build 12, received ${data.build??'unknown'}`);const totals=data.totals||{};byId('totalProducts').textContent=String(num(totals.products));byId('totalPairs').textContent=String(num(totals.pairs));byId('totalShoes').textContent=String(num(totals.shoes));byId('totalSandals').textContent=String(num(totals.sandals));byId('totalLow').textContent=String(num(totals.low));byId('totalOut').textContent=String(num(totals.out));renderBrands(Array.isArray(data.brands)?data.brands:[]);renderAlerts(Array.isArray(data.alerts)?data.alerts:[]);renderRecent(Array.isArray(data.recent_products)?data.recent_products:[]);byId('loadingState').hidden=true;byId('errorState').hidden=true;byId('dashboardContent').hidden=false}
-
-byId('logoutButton').addEventListener('click',async()=>{await fetch('/api/logout',{method:'POST',credentials:'same-origin'});location.replace('/login/')});
-(async()=>{try{await requireSession();await loadDashboard()}catch(error){console.error(error);byId('loadingState').hidden=true;byId('dashboardContent').hidden=true;byId('errorState').hidden=false;byId('errorState').textContent=`Unable to load dashboard: ${error.message}`}})();
-</script>
-</body></html>

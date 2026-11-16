@@ -1,20 +1,25 @@
-SOLESTOCK R2 MIGRATION FIX - BUILD 13
+SOLESTOCK UI FIX BUILD 14
 
-Replace only:
-scripts/migrate_cloudinary_to_r2.py
-
-The rest of Build 12 stays unchanged.
+Updated files:
+- public/index.html
+- public/build14.css
 
 Fixes:
-- retains the HttpOnly session cookie using CookieJar
-- sends a normal User-Agent
-- verifies /health before asking for credentials
-- verifies /api/session immediately after login
-- displays the actual server error body for HTTP errors
-- asks for confirmation before writing
-- skips images already on R2
-- rolls back a new R2 object if the D1 update fails
-- writes scripts/r2_migration_log.csv after every product
+- Edit article opens /product/?id=<product_id>
+- Product filter in Stock Alerts
+- Shoes/Sandals category filter in Stock Alerts
+- Apply and Clear filters
+- Product edit image uses object-fit: contain
+- "No image uploaded" placeholder is hidden when a current image exists
 
-Run:
-python .\scripts\migrate_cloudinary_to_r2.py
+INSTALL
+1. Extract ZIP.
+2. Copy the public folder into the repository root.
+3. Replace public/index.html and add public/build14.css.
+4. No Worker, D1, R2, wrangler or database changes are required.
+5. Deploy: uv run pywrangler deploy
+6. Open /?build=14 and Ctrl+F5.
+7. Open /product/?id=<id>; build14.css is loaded only by Home currently. Add the line below to public/product/index.html head if not already present:
+   <link rel="stylesheet" href="/build14.css?v=14">
+
+For convenience, apply_product_css.ps1 is included to add this link safely.

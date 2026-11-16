@@ -1,0 +1,14 @@
+/* Build 14: Render-compatible Stock Alerts filters and product image preview fix */
+.hidden{display:none!important}
+.stock-alert-open{display:inline-flex;color:var(--accent);text-decoration:none;font-size:10px;font-weight:800;white-space:nowrap}
+.stock-alert-open:hover{text-decoration:underline}
+.stock-alert-filters{padding:14px 15px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:minmax(190px,1.5fr) minmax(130px,1fr) auto auto;gap:9px;align-items:end;background:#fff}
+.stock-alert-filters label{display:flex;flex-direction:column;gap:5px;color:var(--muted);font-size:11px;font-weight:800;text-transform:uppercase}
+.stock-alert-filters select{min-height:42px;text-transform:none}
+.current-image-box{position:relative;width:300px;max-width:100%;min-height:245px;padding:12px;overflow:hidden}
+.current-image-box.no-current-image{min-height:245px}
+.current-product-image{display:block!important;width:100%!important;height:220px!important;max-width:100%!important;max-height:220px!important;padding:8px;border-radius:10px;object-fit:contain!important;object-position:center;background:#fff}
+.current-product-image.hidden{display:none!important}
+.image-placeholder{position:absolute;inset:12px;display:grid;place-items:center;padding:20px;color:var(--muted);text-align:center;background:var(--paper);z-index:1}
+.image-placeholder.hidden{display:none!important}
+@media(max-width:680px){.current-image-box{width:100%}.stock-alert-filters{grid-template-columns:1fr 1fr}.stock-alert-filters label:first-child{grid-column:1/-1}.stock-alert-filters .button{width:100%}}
