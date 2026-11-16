@@ -65,6 +65,27 @@ const node=(tag,className,text)=>{const element=document.createElement(tag);if(c
 
 async function requireSession(){const response=await fetch('/api/session',{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error(`Session failed: ${response.status}`);const data=await response.json();if(!data.authenticated){location.replace('/login/');throw Error('Authentication required')}ui.user.textContent=data.user_id||'admin'}
 
+function buildStocksReturnUrl(){
+  const params=new URLSearchParams();
+  const search=ui.search.value.trim();
+  if(search)params.set('q',search);
+  if(ui.brand.value)params.set('brand',ui.brand.value);
+  if(ui.category.value)params.set('category',ui.category.value);
+  if(ui.size.value)params.set('size',ui.size.value);
+  if(ui.status.value)params.set('status',ui.status.value);
+  const query=params.toString();
+  return query?`/stocks/?${query}`:'/stocks/';
+}
+function restoreStocksFilters(){
+  const params=new URLSearchParams(location.search);
+  ui.search.value=params.get('q')||'';
+  ui.brand.value=params.get('brand')||'';
+  ui.category.value=params.get('category')||'';
+  ui.size.value=params.get('size')||'';
+  ui.status.value=params.get('status')||'';
+  ui.tabs.querySelectorAll('[data-brand]').forEach(button=>button.classList.toggle('selected',button.dataset.brand===ui.brand.value));
+}
+
 function createProductCard(product){
   const id=num(product.id);
   const article=clean(product.article_name,`Product ${id}`);
@@ -107,7 +128,7 @@ function createProductCard(product){
 
   const foot=node('div','product-foot');
   const totalLabel=node('span','','Total ');totalLabel.appendChild(node('strong','',String(total)));foot.appendChild(totalLabel);
-  const actions=node('div');const edit=node('a','icon-button','Edit');edit.href=`/product/?id=${id}`;const remove=node('button','icon-button danger-text','Delete');remove.type='button';remove.addEventListener('click',async()=>{if(!confirm(`Delete ${article} - ${name}?`))return;remove.disabled=true;try{const response=await fetch(`/api/product/${id}`,{method:'DELETE',credentials:'same-origin',headers:{'content-type':'application/json'}});const data=await response.json();if(!response.ok)throw Error(data.error||`Delete failed: ${response.status}`);state.products=state.products.filter(item=>num(item.id)!==id);setupFilters();renderProducts();alert(data.message+(data.image_cleanup_deferred?' Existing Cloudinary image cleanup is deferred until R2 migration.':''));}catch(error){alert(error.message);remove.disabled=false}});actions.append(edit,remove);foot.appendChild(actions);body.appendChild(foot);
+  const actions=node('div');const edit=node('a','icon-button','Edit');edit.href=`/product/?id=${id}&return=${encodeURIComponent(buildStocksReturnUrl())}`;const remove=node('button','icon-button danger-text','Delete');remove.type='button';remove.addEventListener('click',async()=>{if(!confirm(`Delete ${article} - ${name}?`))return;remove.disabled=true;try{const response=await fetch(`/api/product/${id}`,{method:'DELETE',credentials:'same-origin',headers:{'content-type':'application/json'}});const data=await response.json();if(!response.ok)throw Error(data.error||`Delete failed: ${response.status}`);state.products=state.products.filter(item=>num(item.id)!==id);setupFilters();renderProducts();alert(data.message+(data.image_cleanup_deferred?' Existing Cloudinary image cleanup is deferred until R2 migration.':''));}catch(error){alert(error.message);remove.disabled=false}});actions.append(edit,remove);foot.appendChild(actions);body.appendChild(foot);
   card.append(photo,body);
   return card;
 }
@@ -126,11 +147,20 @@ function getFilteredProducts(){
   return state.products.filter(product=>{const text=[product.article_name,product.product_name,product.brand,product.category,product.note].map(value=>clean(value)).join(' ').toLowerCase();const sizes=Array.isArray(product.sizes)?product.sizes:[];return(!search||text.includes(search))&&(!brand||clean(product.brand).toLowerCase()===brand)&&(!category||clean(product.category).toLowerCase()===category)&&(!size||sizes.some(stock=>clean(stock.size).toLowerCase()===size&&num(stock.quantity)>0))&&(!status||clean(product.status).toLowerCase()===status)});
 }
 
-function renderProducts(){const products=getFilteredProducts();ui.count.textContent=`${products.length} ${products.length===1?'matching article':'matching articles'}`;ui.grid.replaceChildren();if(products.length){for(const product of products)ui.grid.appendChild(createProductCard(product))}else{const empty=node('div','empty-state');empty.appendChild(node('h2','','No products found'));empty.appendChild(node('p','','Change the filters or add a new product.'));ui.grid.appendChild(empty)}}
+let renderGeneration=0;
+function appendProductBatch(products,start,generation,batchSize=30){
+  if(generation!==renderGeneration)return;
+  const end=Math.min(start+batchSize,products.length);
+  const fragment=document.createDocumentFragment();
+  for(let index=start;index<end;index+=1)fragment.appendChild(createProductCard(products[index]));
+  ui.grid.appendChild(fragment);
+  if(end<products.length)requestAnimationFrame(()=>appendProductBatch(products,end,generation,batchSize));
+}
+function renderProducts(){const products=getFilteredProducts();ui.count.textContent=`${products.length} ${products.length===1?'matching article':'matching articles'}`;ui.grid.replaceChildren();renderGeneration+=1;const generation=renderGeneration;if(products.length){appendProductBatch(products,0,generation,30)}else{const empty=node('div','empty-state');empty.appendChild(node('h2','','No products found'));empty.appendChild(node('p','','Change the filters or add a new product.'));ui.grid.appendChild(empty)}}
 
-async function loadProducts(){const response=await fetch('/api/products',{credentials:'same-origin',cache:'no-store',headers:{accept:'application/json'}});if(response.status===401){location.replace('/login/');return}if(!response.ok)throw Error(`Products request failed: ${response.status}`);const data=await response.json();if(num(data.build)!==12)throw Error(`Expected API build 12, received ${data.build??'unknown'}`);state.products=Array.isArray(data.products)?data.products:[];state.brands=Array.isArray(data.brands)?data.brands:[];setupFilters();renderProducts();ui.loading.hidden=true;ui.error.hidden=true;ui.grid.hidden=false}
+async function loadProducts(){const response=await fetch('/api/products',{credentials:'same-origin',cache:'no-store',headers:{accept:'application/json'}});if(response.status===401){location.replace('/login/');return}if(!response.ok)throw Error(`Products request failed: ${response.status}`);const data=await response.json();if(num(data.build)!==12)throw Error(`Expected API build 12, received ${data.build??'unknown'}`);state.products=Array.isArray(data.products)?data.products:[];state.brands=Array.isArray(data.brands)?data.brands:[];setupFilters();restoreStocksFilters();renderProducts();ui.loading.hidden=true;ui.error.hidden=true;ui.grid.hidden=false}
 
 ui.form.addEventListener('submit',event=>{event.preventDefault();renderProducts()});ui.clear.addEventListener('click',()=>{ui.search.value='';ui.brand.value='';ui.category.value='';ui.size.value='';ui.status.value='';ui.tabs.querySelectorAll('[data-brand]').forEach(button=>button.classList.toggle('selected',button.dataset.brand===''));renderProducts()});ui.tabs.addEventListener('click',event=>{const button=event.target.closest('[data-brand]');if(!button)return;ui.brand.value=button.dataset.brand||'';ui.tabs.querySelectorAll('[data-brand]').forEach(item=>item.classList.remove('selected'));button.classList.add('selected');renderProducts()});ui.logout.addEventListener('click',async()=>{await fetch('/api/logout',{method:'POST',credentials:'same-origin'});location.replace('/login/')});ui.downloadButton.addEventListener('click',event=>{event.stopPropagation();ui.downloadMenu.classList.toggle('show')});document.addEventListener('click',event=>{if(!event.target.closest('.dropdown'))ui.downloadMenu.classList.remove('show')});window.addEventListener('scroll',()=>ui.top.classList.toggle('show',scrollY>300),{passive:true});ui.top.addEventListener('click',()=>scrollTo({top:0,behavior:'smooth'}));
-(async()=>{try{await requireSession();await loadProducts()}catch(error){console.error(error);ui.loading.hidden=true;ui.grid.hidden=true;ui.error.hidden=false;ui.error.textContent=`Unable to load inventory: ${error.message}`}})();
+(async()=>{try{await loadProducts()}catch(error){console.error(error);ui.loading.hidden=true;ui.grid.hidden=true;ui.error.hidden=false;ui.error.textContent=`Unable to load inventory: ${error.message}`}})();
 </script>
 </body></html>

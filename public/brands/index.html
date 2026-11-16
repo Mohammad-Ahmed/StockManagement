@@ -61,6 +61,6 @@ async function loadBrands(){const data=await api('/api/brands');if(num(data.buil
 
 byId('brandAddForm').addEventListener('submit',async event=>{event.preventDefault();const button=event.currentTarget.querySelector('button');button.disabled=true;try{const data=await api('/api/brands',{method:'POST',body:JSON.stringify({name:byId('newBrandName').value})});byId('newBrandName').value='';showMessage(data.message);await loadBrands()}catch(error){showMessage(error.message,'error')}finally{button.disabled=false}});
 byId('logoutButton').addEventListener('click',async()=>{await fetch('/api/logout',{method:'POST',credentials:'same-origin'});location.replace('/login/')});
-(async()=>{try{await requireSession();await loadBrands()}catch(error){console.error(error);byId('loadingState').hidden=true;showMessage(`Unable to load brands: ${error.message}`,'error')}})();
+(async()=>{try{await loadBrands()}catch(error){console.error(error);byId('loadingState').hidden=true;showMessage(`Unable to load brands: ${error.message}`,'error')}})();
 </script>
 </body></html>

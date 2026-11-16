@@ -1,4 +1,6 @@
 
+*.before-performance18.bak
+
 node_modules/
 dist/
 build/
@@ -28,3 +30,5 @@ static/uploads/*
 
 Commands.txt
 scripts/r2_migration_log.csv
+
+d1-insights.json
