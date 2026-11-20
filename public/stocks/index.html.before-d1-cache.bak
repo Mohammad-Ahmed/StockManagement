@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stocks · Maharashtra Boot House</title>
+  <link rel="stylesheet" href="/style.css?v=120">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/"><span class="brand-mark">MBH</span><span>Maharashtra Boot House</span></a>
+  <nav aria-label="Main navigation">
+    <a href="/">Home</a>
+    <a class="active" href="/stocks/">Stocks</a>
+    <a href="/brands/">Brands</a>
+  </nav>
+  <div class="nav-actions">
+    <div class="nav-user"><span class="nav-user-avatar">A</span><span class="nav-user-details"><strong id="currentUser">admin</strong><small>Administrator</small></span></div>
+    <a class="button primary desktop-add" href="/product/">+ Add Product</a>
+    <button id="logoutButton" class="logout-button" type="button"><span class="logout-icon">↪</span><span class="logout-text">Logout</span></button>
+  </div>
+</header>
+
+<main class="container">
+  <section class="page-head">
+    <div><p class="eyebrow">STOCK MANAGEMENT</p><h1>Products</h1><p id="productCount">Loading inventory...</p></div>
+    <div class="actions">
+      <div class="dropdown">
+        <button id="downloadButton" class="button" type="button">Download stock ▾</button>
+        <div id="downloadMenu" class="dropdown-menu">
+          <a href="/api/export/csv">CSV (.csv)</a>
+          <button type="button" disabled title="Excel export will be migrated later">Excel (.xlsx)</button>
+          <button type="button" disabled title="PDF export will be migrated later">PDF (.pdf)</button>
+        </div>
+      </div>
+      <a class="button primary" href="/product/">+ Add Product</a>
+    </div>
+  </section>
+
+  <div id="brandTabs" class="brand-tabs"><button class="selected" type="button" data-brand="">All brands</button></div>
+  <form id="stockFilters" class="filters">
+    <input id="searchInput" type="search" placeholder="Search article, product, brand or category" autocomplete="off">
+    <select id="brandFilter"><option value="">All brands</option></select>
+    <select id="categoryFilter"><option value="">All categories</option><option value="Shoes">Shoes</option><option value="Sandals">Sandals</option></select>
+    <select id="sizeFilter"><option value="">All sizes</option></select>
+    <select id="statusFilter"><option value="">All stock</option><option value="low">Low stock</option><option value="out">Out of stock</option><option value="good">Sufficient</option></select>
+    <button class="button" type="submit">Apply</button>
+    <button id="clearFilters" class="button ghost" type="button">Clear</button>
+  </form>
+
+  <div id="loadingState" class="empty-state"><h2>Loading inventory</h2><p>Loading products from Cloudflare D1...</p></div>
+  <div id="errorState" class="flash error" hidden></div>
+  <section id="productGrid" class="product-grid" hidden></section>
+</main>
+<footer>Inventory management only · Maharashtra Boot House</footer>
+<button type="button" id="backToTopBtn" class="back-to-top-btn" aria-label="Go back to top">↑</button>
+
+<script>
+const state={products:[],brands:[]};
+const $=id=>document.getElementById(id);
+const ui={grid:$('productGrid'),loading:$('loadingState'),error:$('errorState'),count:$('productCount'),search:$('searchInput'),brand:$('brandFilter'),category:$('categoryFilter'),size:$('sizeFilter'),status:$('statusFilter'),form:$('stockFilters'),clear:$('clearFilters'),tabs:$('brandTabs'),top:$('backToTopBtn'),logout:$('logoutButton'),user:$('currentUser'),downloadButton:$('downloadButton'),downloadMenu:$('downloadMenu')};
+const clean=(value,fallback='')=>{const result=String(value??'').trim();return result||fallback};
+const num=(value,fallback=0)=>{const result=Number(value);return Number.isFinite(result)?result:fallback};
+const node=(tag,className,text)=>{const element=document.createElement(tag);if(className)element.className=className;if(text!==undefined)element.textContent=text;return element};
+
+async function requireSession(){const response=await fetch('/api/session',{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error(`Session failed: ${response.status}`);const data=await response.json();if(!data.authenticated){location.replace('/login/');throw Error('Authentication required')}ui.user.textContent=data.user_id||'admin'}
+
+function buildStocksReturnUrl(){
+  const params=new URLSearchParams();
+  const search=ui.search.value.trim();
+  if(search)params.set('q',search);
+  if(ui.brand.value)params.set('brand',ui.brand.value);
+  if(ui.category.value)params.set('category',ui.category.value);
+  if(ui.size.value)params.set('size',ui.size.value);
+  if(ui.status.value)params.set('status',ui.status.value);
+  const query=params.toString();
+  return query?`/stocks/?${query}`:'/stocks/';
+}
+function restoreStocksFilters(){
+  const params=new URLSearchParams(location.search);
+  ui.search.value=params.get('q')||'';
+  ui.brand.value=params.get('brand')||'';
+  ui.category.value=params.get('category')||'';
+  ui.size.value=params.get('size')||'';
+  ui.status.value=params.get('status')||'';
+  ui.tabs.querySelectorAll('[data-brand]').forEach(button=>button.classList.toggle('selected',button.dataset.brand===ui.brand.value));
+}
+
+function createProductCard(product){
+  const id=num(product.id);
+  const article=clean(product.article_name,`Product ${id}`);
+  const name=clean(product.product_name,article);
+  const brand=clean(product.brand,'Unknown brand');
+  const category=clean(product.category,'Uncategorized');
+  const sizes=Array.isArray(product.sizes)?product.sizes:[];
+  const calculated=sizes.reduce((total,item)=>total+num(item.quantity),0);
+  const total=num(product.total_quantity,calculated);
+  const status=clean(product.status,total===0?'out':'good').toLowerCase();
+
+  const card=node('article','product-card');
+  const photo=node('div','photo');
+  if(clean(product.image_url)){
+    const image=node('img');image.src=product.image_url;image.alt=name;image.loading='lazy';image.decoding='async';
+    image.addEventListener('error',()=>{image.replaceWith(node('div','shoe-icon','◒'))},{once:true});
+    photo.appendChild(image);
+  }else photo.appendChild(node('div','shoe-icon','◒'));
+  photo.appendChild(node('span',`status ${status}`,status));
+
+  const body=node('div','product-body');
+  body.appendChild(node('div','article',article));
+  body.appendChild(node('h2','',name));
+  body.appendChild(node('p','',`${brand} · ${category}`));
+
+  const sizesBox=node('div','sizes');
+  if(sizes.length){
+    for(const stock of sizes){
+      const quantity=num(stock.quantity),threshold=num(stock.minimum_threshold);
+      const badge=node('span',quantity===0?'zero':quantity<=threshold?'low':'');
+      badge.title=`Size ${clean(stock.size,'-')}: ${quantity} pairs`;
+      badge.appendChild(node('b','',clean(stock.size,'-')));
+      badge.appendChild(node('small','',String(quantity)));
+      sizesBox.appendChild(badge);
+    }
+  }else{
+    const badge=node('span','no-size-record');badge.appendChild(node('b','','—'));badge.appendChild(node('small','','No sizes'));sizesBox.appendChild(badge);
+  }
+  body.appendChild(sizesBox);
+
+  const foot=node('div','product-foot');
+  const totalLabel=node('span','','Total ');totalLabel.appendChild(node('strong','',String(total)));foot.appendChild(totalLabel);
+  const actions=node('div');const edit=node('a','icon-button','Edit');edit.href=`/product/?id=${id}&return=${encodeURIComponent(buildStocksReturnUrl())}`;const remove=node('button','icon-button danger-text','Delete');remove.type='button';remove.addEventListener('click',async()=>{if(!confirm(`Delete ${article} - ${name}?`))return;remove.disabled=true;try{const response=await fetch(`/api/product/${id}`,{method:'DELETE',credentials:'same-origin',headers:{'content-type':'application/json'}});const data=await response.json();if(!response.ok)throw Error(data.error||`Delete failed: ${response.status}`);state.products=state.products.filter(item=>num(item.id)!==id);setupFilters();renderProducts();alert(data.message+(data.image_cleanup_deferred?' Existing Cloudinary image cleanup is deferred until R2 migration.':''));}catch(error){alert(error.message);remove.disabled=false}});actions.append(edit,remove);foot.appendChild(actions);body.appendChild(foot);
+  card.append(photo,body);
+  return card;
+}
+
+function setupFilters(){
+  const brands=[...new Set([...state.brands,...state.products.map(product=>clean(product.brand)).filter(Boolean)])].sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));
+  const sizes=[...new Set(state.products.flatMap(product=>(Array.isArray(product.sizes)?product.sizes:[]).map(stock=>clean(stock.size)).filter(Boolean)))].sort((a,b)=>{const x=Number(a),y=Number(b);if(Number.isFinite(x)&&Number.isFinite(y))return x-y;return a.localeCompare(b,undefined,{numeric:true})});
+  ui.brand.replaceChildren(new Option('All brands',''));ui.tabs.replaceChildren();
+  const all=node('button','selected','All brands');all.type='button';all.dataset.brand='';ui.tabs.appendChild(all);
+  for(const brand of brands){ui.brand.add(new Option(brand,brand));const button=node('button','',brand);button.type='button';button.dataset.brand=brand;ui.tabs.appendChild(button)}
+  ui.size.replaceChildren(new Option('All sizes',''));for(const size of sizes)ui.size.add(new Option(size,size));
+}
+
+function getFilteredProducts(){
+  const search=ui.search.value.trim().toLowerCase(),brand=ui.brand.value.trim().toLowerCase(),category=ui.category.value.trim().toLowerCase(),size=ui.size.value.trim().toLowerCase(),status=ui.status.value.trim().toLowerCase();
+  return state.products.filter(product=>{const text=[product.article_name,product.product_name,product.brand,product.category,product.note].map(value=>clean(value)).join(' ').toLowerCase();const sizes=Array.isArray(product.sizes)?product.sizes:[];return(!search||text.includes(search))&&(!brand||clean(product.brand).toLowerCase()===brand)&&(!category||clean(product.category).toLowerCase()===category)&&(!size||sizes.some(stock=>clean(stock.size).toLowerCase()===size&&num(stock.quantity)>0))&&(!status||clean(product.status).toLowerCase()===status)});
+}
+
+let renderGeneration=0;
+function appendProductBatch(products,start,generation,batchSize=30){
+  if(generation!==renderGeneration)return;
+  const end=Math.min(start+batchSize,products.length);
+  const fragment=document.createDocumentFragment();
+  for(let index=start;index<end;index+=1)fragment.appendChild(createProductCard(products[index]));
+  ui.grid.appendChild(fragment);
+  if(end<products.length)requestAnimationFrame(()=>appendProductBatch(products,end,generation,batchSize));
+}
+function renderProducts(){const products=getFilteredProducts();ui.count.textContent=`${products.length} ${products.length===1?'matching article':'matching articles'}`;ui.grid.replaceChildren();renderGeneration+=1;const generation=renderGeneration;if(products.length){appendProductBatch(products,0,generation,30)}else{const empty=node('div','empty-state');empty.appendChild(node('h2','','No products found'));empty.appendChild(node('p','','Change the filters or add a new product.'));ui.grid.appendChild(empty)}}
+
+async function loadProducts(){const response=await fetch('/api/products',{credentials:'same-origin',cache:'no-store',headers:{accept:'application/json'}});if(response.status===401){location.replace('/login/');return}if(!response.ok)throw Error(`Products request failed: ${response.status}`);const data=await response.json();if(num(data.build)!==12)throw Error(`Expected API build 12, received ${data.build??'unknown'}`);state.products=Array.isArray(data.products)?data.products:[];state.brands=Array.isArray(data.brands)?data.brands:[];setupFilters();restoreStocksFilters();renderProducts();ui.loading.hidden=true;ui.error.hidden=true;ui.grid.hidden=false}
+
+ui.form.addEventListener('submit',event=>{event.preventDefault();renderProducts()});ui.clear.addEventListener('click',()=>{ui.search.value='';ui.brand.value='';ui.category.value='';ui.size.value='';ui.status.value='';ui.tabs.querySelectorAll('[data-brand]').forEach(button=>button.classList.toggle('selected',button.dataset.brand===''));renderProducts()});ui.tabs.addEventListener('click',event=>{const button=event.target.closest('[data-brand]');if(!button)return;ui.brand.value=button.dataset.brand||'';ui.tabs.querySelectorAll('[data-brand]').forEach(item=>item.classList.remove('selected'));button.classList.add('selected');renderProducts()});ui.logout.addEventListener('click',async()=>{await fetch('/api/logout',{method:'POST',credentials:'same-origin'});location.replace('/login/')});ui.downloadButton.addEventListener('click',event=>{event.stopPropagation();ui.downloadMenu.classList.toggle('show')});document.addEventListener('click',event=>{if(!event.target.closest('.dropdown'))ui.downloadMenu.classList.remove('show')});window.addEventListener('scroll',()=>ui.top.classList.toggle('show',scrollY>300),{passive:true});ui.top.addEventListener('click',()=>scrollTo({top:0,behavior:'smooth'}));
+(async()=>{try{await loadProducts()}catch(error){console.error(error);ui.loading.hidden=true;ui.grid.hidden=true;ui.error.hidden=false;ui.error.textContent=`Unable to load inventory: ${error.message}`}})();
+</script>
+</body></html>

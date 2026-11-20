@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Manage Brands · Maharashtra Boot House</title>
+  <link rel="stylesheet" href="/style.css?v=120">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/"><span class="brand-mark">MBH</span><span>Maharashtra Boot House</span></a>
+  <nav aria-label="Main navigation">
+    <a href="/">Home</a><a href="/stocks/">Stocks</a><a class="active" href="/brands/">Brands</a>
+  </nav>
+  <div class="nav-actions">
+    <div class="nav-user"><span class="nav-user-avatar">A</span><span class="nav-user-details"><strong id="currentUser">admin</strong><small>Administrator</small></span></div>
+    <a class="button primary desktop-add" href="/product/">+ Add Product</a>
+    <button id="logoutButton" class="logout-button" type="button" title="Logout from Maharashtra Boot House"><span class="logout-icon">↪</span><span class="logout-text">Logout</span></button>
+  </div>
+</header>
+
+<main class="container">
+  <section class="page-head">
+    <div><p class="eyebrow">BRAND MANAGEMENT</p><h1>Manage brands</h1><p>Add new brands, rename existing brands, or remove unused brands.</p></div>
+  </section>
+
+  <div id="flashMessage" class="flash" hidden></div>
+  <div id="loadingState" class="empty-state"><h2>Loading brands</h2><p>Loading brand information from Cloudflare D1...</p></div>
+  <div id="content" class="brand-management-layout" hidden>
+    <section class="panel brand-add-panel">
+      <h2>Add a new brand</h2>
+      <p class="brand-help-text">After adding a brand, it will appear automatically in the product form, stock filters and dashboard.</p>
+      <form id="brandAddForm" class="brand-add-form">
+        <label>Brand name<input id="newBrandName" type="text" placeholder="e.g. Adidas" maxlength="60" required></label>
+        <button class="button primary" type="submit">+ Add Brand</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><div><h2>Available brands</h2><p id="brandCount">0 brand(s) available</p></div></div>
+      <div id="brandList" class="brand-management-list"></div>
+    </section>
+  </div>
+</main>
+<footer>Inventory management only · Maharashtra Boot House</footer>
+
+<script>
+const byId=id=>document.getElementById(id);
+const clean=(value,fallback='')=>{const result=String(value??'').trim();return result||fallback};
+const num=(value,fallback=0)=>{const result=Number(value);return Number.isFinite(result)?result:fallback};
+const node=(tag,className,text)=>{const element=document.createElement(tag);if(className)element.className=className;if(text!==undefined)element.textContent=text;return element};
+const state={brands:[]};
+
+async function requireSession(){const response=await fetch('/api/session',{credentials:'same-origin',cache:'no-store'});if(!response.ok)throw Error(`Session failed: ${response.status}`);const data=await response.json();if(!data.authenticated){location.replace('/login/');throw Error('Authentication required')}byId('currentUser').textContent=data.user_id||'admin'}
+function showMessage(message,type='success'){const box=byId('flashMessage');box.className=`flash ${type}`;box.textContent=message;box.hidden=false;setTimeout(()=>{box.hidden=true},3500)}
+async function api(url,options={}){const response=await fetch(url,{credentials:'same-origin',cache:'no-store',...options,headers:{'content-type':'application/json',...(options.headers||{})}});if(response.status===401){location.replace('/login/');throw Error('Authentication required')}const data=await response.json();if(!response.ok)throw Error(data.error||`Request failed: ${response.status}`);return data}
+
+function renderBrands(){const list=byId('brandList');list.replaceChildren();byId('brandCount').textContent=`${state.brands.length} brand(s) available`;if(!state.brands.length){const empty=node('div','empty-state');empty.appendChild(node('h2','','No brands added'));empty.appendChild(node('p','','Use the form above to add the first brand.'));list.appendChild(empty);return}for(const brand of state.brands){const item=node('article','brand-management-item');const info=node('div','brand-management-info');info.appendChild(node('span','brand-large-mark',clean(brand.name,'?').slice(0,1).toUpperCase()));const text=node('div');text.appendChild(node('strong','',clean(brand.name,'Unnamed brand')));text.appendChild(node('small','',`${num(brand.product_count)} product(s)`));info.appendChild(text);item.appendChild(info);const actions=node('div','brand-management-actions');const renameForm=node('form','brand-rename-form');const input=document.createElement('input');input.type='text';input.value=clean(brand.name);input.maxLength=60;input.required=true;input.setAttribute('aria-label',`Rename ${clean(brand.name)}`);const rename=node('button','button','Rename');rename.type='submit';renameForm.append(input,rename);renameForm.addEventListener('submit',async event=>{event.preventDefault();rename.disabled=true;try{const data=await api(`/api/brands/${brand.id}`,{method:'PATCH',body:JSON.stringify({name:input.value})});showMessage(data.message);await loadBrands()}catch(error){showMessage(error.message,'error')}finally{rename.disabled=false}});actions.appendChild(renameForm);const deleteButton=node('button','button brand-delete-button','Delete');deleteButton.type='button';deleteButton.disabled=num(brand.product_count)>0;if(deleteButton.disabled)deleteButton.title='This brand still has products';deleteButton.addEventListener('click',async()=>{if(!confirm(`Delete the brand ${clean(brand.name)}?`))return;deleteButton.disabled=true;try{const data=await api(`/api/brands/${brand.id}`,{method:'DELETE'});showMessage(data.message);await loadBrands()}catch(error){showMessage(error.message,'error');deleteButton.disabled=false}});actions.appendChild(deleteButton);item.appendChild(actions);list.appendChild(item)}}
+
+async function loadBrands(){const data=await api('/api/brands');if(num(data.build)!==12)throw Error(`Expected API build 12, received ${data.build??'unknown'}`);state.brands=Array.isArray(data.brands)?data.brands:[];renderBrands();byId('loadingState').hidden=true;byId('content').hidden=false}
+
+byId('brandAddForm').addEventListener('submit',async event=>{event.preventDefault();const button=event.currentTarget.querySelector('button');button.disabled=true;try{const data=await api('/api/brands',{method:'POST',body:JSON.stringify({name:byId('newBrandName').value})});byId('newBrandName').value='';showMessage(data.message);await loadBrands()}catch(error){showMessage(error.message,'error')}finally{button.disabled=false}});
+byId('logoutButton').addEventListener('click',async()=>{await fetch('/api/logout',{method:'POST',credentials:'same-origin'});location.replace('/login/')});
+(async()=>{try{await loadBrands()}catch(error){console.error(error);byId('loadingState').hidden=true;showMessage(`Unable to load brands: ${error.message}`,'error')}})();
+</script>
+</body></html>
